@@ -1,0 +1,26 @@
+# Codex runs inside a hardened Docker container — the container IS the sandbox.
+# The CLI flag --dangerously-bypass-approvals-and-sandbox disables the OS-level
+# sandbox (Seatbelt/bubblewrap) since Docker provides isolation via:
+#   --cap-drop ALL, --security-opt no-new-privileges, optional --network=none
+
+# Default model — can be overridden via `agentd shell --codex --model <name>`
+check_for_update_on_startup = false
+commit_attribution = ""
+model = "gpt-5.4"
+model_reasoning_effort = "high"
+model_verbosity = "low"
+personality = "pragmatic"
+
+[mcp_servers.openaiDeveloperDocs]
+url = "https://developers.openai.com/mcp"
+
+[projects."/workspace"]
+trust_level = "trusted"
+
+[shell_environment_policy]
+inherit = "core"
+
+[tui]
+notification_method = "bel"
+show_tooltips = false
+status_line = ["model-with-reasoning", "context-remaining", "current-dir", "git-branch", "context-used", "five-hour-limit"]

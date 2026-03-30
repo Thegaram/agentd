@@ -1,0 +1,33 @@
+{
+  "name": "agentd",
+  "version": "0.1.0",
+  "description": "Sandboxed coding agent sessions",
+  "author": "Péter Garamvölgyi",
+  "license": "MIT",
+  "keywords": ["docker", "ai", "coding-agent", "sandbox", "claude", "codex", "aider", "tmux"],
+  "private": true,
+  "type": "module",
+  "bin": {
+    "agentd": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsx watch src/cli.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint src/",
+    "prepare": "git config core.hooksPath .githooks"
+  },
+  "dependencies": {
+    "incur": "^0.3.4",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "tsup": "^8.5.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.0"
+  }
+}

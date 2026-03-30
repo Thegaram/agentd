@@ -1,0 +1,54 @@
+#compdef agentd
+
+_agentd_sessions() {
+  local agentd_home="${AGENTD_HOME:-$HOME/.agentd}"
+  local state_file="$agentd_home/state.json"
+  [[ -f "$state_file" ]] || return
+  local -a session_ids
+  session_ids=($(jq -r '.sessions[].label' "$state_file" 2>/dev/null))
+  compadd -a session_ids
+}
+
+_agentd() {
+  local -a commands=(
+    'ls:List all active sessions'
+    'cancel:Cancel a session and remove its container'
+    'shell:Sandboxed coding agent session (mounts current directory by default)'
+    'code:Open a running session in VS Code (Dev Containers)'
+  )
+
+  if (( CURRENT == 2 )); then
+    _describe 'command' commands
+    return
+  fi
+
+  local cmd="${words[2]}"
+  case "$cmd" in
+    cancel)
+      _agentd_sessions
+      ;;
+    code)
+      if (( CURRENT == 3 )); then
+        _agentd_sessions
+      fi
+      ;;
+    shell)
+      if (( CURRENT >= 3 )); then
+        _arguments \
+          '--claude[Use Claude Code backend (default)]' \
+          '--codex[Use OpenAI Codex backend]' \
+          '--aider[Use aider backend (local Ollama)]' \
+          '*--mount[Extra mount host\:container path]:mount path:_files' \
+          '*--secret[Secret scope]:scope:' \
+          '--model[Model override (agent-specific)]:model:' \
+          '--rm[Remove container when session ends]' \
+          "--skip-mount[Don't mount current directory]" \
+          '*--port[Port mappings (replaces default 3000)]:port:' \
+          "--skip-ports[Don't publish any ports]" \
+          '--dry-run[Print the Docker command without executing]'
+      fi
+      ;;
+  esac
+}
+
+_agentd "$@"

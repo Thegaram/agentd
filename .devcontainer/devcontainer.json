@@ -1,0 +1,26 @@
+{
+  "name": "agentd",
+  "build": {
+    // Use Dockerfile.base for agent-agnostic dev, or claude/Dockerfile or codex/Dockerfile
+    "dockerfile": "../container/Dockerfile.base"
+  },
+  "runArgs": ["--cap-add=SYS_PTRACE"],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "anthropic.claude-code",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "eamodio.gitlens"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "editor.formatOnSave": true
+      }
+    }
+  },
+  "remoteUser": "agent",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
+  "workspaceFolder": "/workspace",
+  "overrideCommand": true
+}
