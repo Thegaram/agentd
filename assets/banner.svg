@@ -1,0 +1,129 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 320" fill="none">
+  <style>
+    .mono { font-family: 'SF Mono','Cascadia Code','Fira Code','Consolas',monospace; }
+  </style>
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="800" y2="320" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0d0d14"/>
+      <stop offset="100%" stop-color="#161625"/>
+    </linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 2 L 5 5 L 0 8" fill="none" stroke="#3b3b5c" stroke-width="1.5"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="800" height="320" rx="12" fill="url(#bg)"/>
+
+  <!-- Title -->
+  <text x="400" y="38" text-anchor="middle" class="mono" font-size="22" font-weight="700" fill="#c0caf5" letter-spacing="1">agentd</text>
+
+  <!-- CLI prompt -->
+  <g transform="translate(270, 54)">
+    <rect width="260" height="30" rx="6" fill="#1a1a2e" stroke="#2a2a4a" stroke-width="1"/>
+    <text x="12" y="20" class="mono" font-size="12" fill="#7aa2f7">$</text>
+    <text x="24" y="20" class="mono" font-size="12" fill="#a9b1d6">agentd shell</text>
+  </g>
+
+  <!-- Curved fan-out connectors -->
+  <path d="M 400,92 C 400,112 240,112 156,126" stroke="#3b3b5c" stroke-width="1.2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M 400,92 C 400,104 400,114 400,126" stroke="#3b3b5c" stroke-width="1.2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M 400,92 C 400,112 560,112 644,126" stroke="#3b3b5c" stroke-width="1.2" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- Container 1: Claude -->
+  <g transform="translate(44, 132)">
+    <rect width="224" height="170" rx="10" fill="none" stroke="#d4a574" stroke-width="1.5" stroke-dasharray="6 4" opacity="0.5"/>
+    <rect x="1" y="1" width="222" height="168" rx="9" fill="#12121e" opacity="0.9"/>
+
+    <!-- Header -->
+    <rect x="1" y="1" width="222" height="30" rx="9" fill="#1e1a14"/>
+    <rect x="1" y="22" width="222" height="9" fill="#1e1a14"/>
+    <circle cx="16" cy="16" r="4" fill="#d4a574"/>
+    <text x="28" y="20" class="mono" font-size="11" font-weight="600" fill="#d4a574">claude</text>
+    <rect x="160" y="7" width="56" height="16" rx="3" fill="#d4a574" opacity="0.12"/>
+    <text x="188" y="18" text-anchor="middle" class="mono" font-size="8" fill="#d4a574" opacity="0.7">sandbox</text>
+
+    <!-- Terminal content -->
+    <text x="12" y="52" class="mono" font-size="10" fill="#565f89">~/my-project</text>
+    <text x="12" y="68" class="mono" font-size="10" fill="#7aa2f7">&gt;</text>
+    <text x="22" y="68" class="mono" font-size="10" fill="#a9b1d6">Refactoring auth</text>
+    <text x="22" y="82" class="mono" font-size="10" fill="#a9b1d6">module...</text>
+
+    <g transform="translate(12, 96)">
+      <rect width="200" height="18" rx="3" fill="#1a2a1a" opacity="0.6"/>
+      <text x="6" y="13" class="mono" font-size="9" fill="#9ece6a">M  src/auth.ts</text>
+    </g>
+    <g transform="translate(12, 118)">
+      <rect width="200" height="18" rx="3" fill="#1a2a1a" opacity="0.6"/>
+      <text x="6" y="13" class="mono" font-size="9" fill="#9ece6a">M  src/middleware.ts</text>
+    </g>
+    <g transform="translate(12, 140)">
+      <rect width="200" height="18" rx="3" fill="#1a1a2e" opacity="0.6"/>
+      <text x="6" y="13" class="mono" font-size="9" fill="#565f89">12 tests passing</text>
+    </g>
+  </g>
+
+  <!-- Container 2: Codex -->
+  <g transform="translate(288, 132)">
+    <rect width="224" height="170" rx="10" fill="none" stroke="#6cc070" stroke-width="1.5" stroke-dasharray="6 4" opacity="0.5"/>
+    <rect x="1" y="1" width="222" height="168" rx="9" fill="#12121e" opacity="0.9"/>
+
+    <rect x="1" y="1" width="222" height="30" rx="9" fill="#141e14"/>
+    <rect x="1" y="22" width="222" height="9" fill="#141e14"/>
+    <circle cx="16" cy="16" r="4" fill="#6cc070"/>
+    <text x="28" y="20" class="mono" font-size="11" font-weight="600" fill="#6cc070">codex</text>
+    <rect x="160" y="7" width="56" height="16" rx="3" fill="#6cc070" opacity="0.12"/>
+    <text x="188" y="18" text-anchor="middle" class="mono" font-size="8" fill="#6cc070" opacity="0.7">sandbox</text>
+
+    <text x="12" y="52" class="mono" font-size="10" fill="#565f89">~/api-server</text>
+    <text x="12" y="68" class="mono" font-size="10" fill="#7aa2f7">&gt;</text>
+    <text x="22" y="68" class="mono" font-size="10" fill="#a9b1d6">Adding pagination</text>
+    <text x="22" y="82" class="mono" font-size="10" fill="#a9b1d6">to /users endpoint</text>
+
+    <g transform="translate(12, 96)">
+      <rect width="200" height="18" rx="3" fill="#1a2a1a" opacity="0.6"/>
+      <text x="6" y="13" class="mono" font-size="9" fill="#9ece6a">M  src/routes/users.ts</text>
+    </g>
+    <g transform="translate(12, 118)">
+      <rect width="200" height="18" rx="3" fill="#1a2a1a" opacity="0.6"/>
+      <text x="6" y="13" class="mono" font-size="9" fill="#9ece6a">A  src/utils/paginate.ts</text>
+    </g>
+    <g transform="translate(12, 140)">
+      <rect width="200" height="18" rx="3" fill="#1a1a2e" opacity="0.6"/>
+      <text x="6" y="13" class="mono" font-size="9" fill="#565f89">8 tests passing</text>
+    </g>
+  </g>
+
+  <!-- Container 3: Aider -->
+  <g transform="translate(532, 132)">
+    <rect width="224" height="170" rx="10" fill="none" stroke="#7aa2f7" stroke-width="1.5" stroke-dasharray="6 4" opacity="0.5"/>
+    <rect x="1" y="1" width="222" height="168" rx="9" fill="#12121e" opacity="0.9"/>
+
+    <rect x="1" y="1" width="222" height="30" rx="9" fill="#14141e"/>
+    <rect x="1" y="22" width="222" height="9" fill="#14141e"/>
+    <circle cx="16" cy="16" r="4" fill="#7aa2f7"/>
+    <text x="28" y="20" class="mono" font-size="11" font-weight="600" fill="#7aa2f7">aider</text>
+    <rect x="160" y="7" width="56" height="16" rx="3" fill="#7aa2f7" opacity="0.12"/>
+    <text x="188" y="18" text-anchor="middle" class="mono" font-size="8" fill="#7aa2f7" opacity="0.7">sandbox</text>
+
+    <text x="12" y="52" class="mono" font-size="10" fill="#565f89">~/frontend</text>
+    <text x="12" y="68" class="mono" font-size="10" fill="#7aa2f7">&gt;</text>
+    <text x="22" y="68" class="mono" font-size="10" fill="#a9b1d6">Building dashboard</text>
+    <text x="22" y="82" class="mono" font-size="10" fill="#a9b1d6">components...</text>
+
+    <g transform="translate(12, 96)">
+      <rect width="200" height="18" rx="3" fill="#1a2a1a" opacity="0.6"/>
+      <text x="6" y="13" class="mono" font-size="9" fill="#9ece6a">A  src/Dashboard.tsx</text>
+    </g>
+    <g transform="translate(12, 118)">
+      <rect width="200" height="18" rx="3" fill="#1a2a1a" opacity="0.6"/>
+      <text x="6" y="13" class="mono" font-size="9" fill="#9ece6a">A  src/Charts.tsx</text>
+    </g>
+    <g transform="translate(12, 140)">
+      <rect width="200" height="18" rx="3" fill="#1a1a2e" opacity="0.6"/>
+      <text x="6" y="13" class="mono" font-size="9" fill="#565f89">5 tests passing</text>
+    </g>
+  </g>
+
+</svg>
