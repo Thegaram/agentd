@@ -20,8 +20,99 @@ const cli = Cli.create("agentd", {
   description: "Sandboxed AI coding agent sessions",
 });
 
+type SessionRow = {
+  label: string;
+  agent: string;
+  status: string;
+  containerId: string;
+  age: string;
+};
+
+const STATUS_DISPLAY: Record<string, string> = {
+  running:    "\x1b[32m●\x1b[0m running",     // green
+  suspended:  "\x1b[34m●\x1b[0m suspended",   // blue
+  terminated: "\x1b[31m●\x1b[0m terminated",   // red
+};
+
+function statusDisplay(status: string): string {
+  return STATUS_DISPLAY[status] ?? status;
+}
+
+/** Visible length of a string, ignoring ANSI escape sequences. */
+// eslint-disable-next-line no-control-regex
+const ANSI_RE = /\x1b\[[0-9;]*m/g;
+function visibleLength(s: string): number {
+  ANSI_RE.lastIndex = 0;
+  return s.replace(ANSI_RE, "").length;
+}
+
+const recentlyTerminated = new Map<string, SessionRow>();
+
+function toRow(s: { label: string; agent: string; containerId: string; startedAt: string }, status: string): SessionRow {
+  return { label: s.label, agent: s.agent, status, containerId: s.containerId?.slice(0, 12) ?? "", age: formatAge(s.startedAt) };
+}
+
+async function fetchSessionRows(forWatch = false): Promise<SessionRow[]> {
+  const sessions = mgr.listSessions();
+  const rows = await Promise.all(
+    sessions.map(async (s) => {
+      const state = await mgr.containerState(s.containerId);
+      if (state !== "running") {
+        if (forWatch) recentlyTerminated.set(s.label, toRow(s, "terminated"));
+        if (s.autoRemove) {
+          await mgr.cancel(s.label);
+          return null;
+        }
+        if (state === "missing") {
+          mgr.removeSession(s.label);
+          return null;
+        }
+      }
+      return toRow(s, state === "running" ? "running" : "suspended");
+    }),
+  );
+  const active = rows.filter((r) => r !== null);
+
+  if (forWatch) {
+    const terminated = [...recentlyTerminated.values()].filter(
+      (t) => !active.some((a) => a.label === t.label),
+    );
+    const all = [...active, ...terminated];
+    recentlyTerminated.clear();
+    return all;
+  }
+  return active;
+}
+
+function renderTable(rows: SessionRow[]): string {
+  const headers = ["LABEL", "AGENT", "STATUS", "CONTAINER", "AGE"];
+  const keys: (keyof SessionRow)[] = ["label", "agent", "status", "containerId", "age"];
+  // For STATUS column, measure visible width (status values have ANSI codes when displayed).
+  const displayed = rows.map((r) => keys.map((k) => {
+    if (k === "status") return statusDisplay(r[k]);
+    if (k === "label") return `\x1b[1m${r[k]}\x1b[0m`;
+    return r[k];
+  }));
+  const widths = headers.map((h, i) =>
+    Math.max(h.length, ...displayed.map((d) => visibleLength(d[i] as string))),
+  );
+  const padVisible = (s: string, w: number) => s + " ".repeat(Math.max(0, w - visibleLength(s)));
+  const lines: string[] = [];
+  lines.push(headers.map((h, i) => padVisible(h, widths[i] as number)).join("  "));
+  for (const d of displayed) {
+    lines.push(d.map((v, i) => padVisible(v as string, widths[i] as number)).join("  "));
+  }
+  return lines.join("\n");
+}
+
 cli.command("ls", {
   description: "List all active sessions",
+  options: z.object({
+    watch: z
+      .boolean()
+      .optional()
+      .describe("Live-updating dashboard (refreshes every 2s)"),
+  }),
   output: z.object({
     sessions: z.array(
       z.object({
@@ -35,33 +126,38 @@ cli.command("ls", {
     message: z.string().optional(),
   }),
   async run(c) {
-    const sessions = mgr.listSessions();
-    if (sessions.length === 0) {
+    if (c.options.watch) {
+      const INTERVAL_MS = 2000;
+      const tick = async () => {
+        const rows = await fetchSessionRows(true);
+        const now = new Date().toLocaleTimeString();
+        process.stdout.write("\x1b[2J\x1b[H"); // clear screen, cursor to top
+        if (rows.length === 0) {
+          process.stdout.write(`agentd sessions  (${now})\n\nNo active sessions\n`);
+        } else {
+          process.stdout.write(`agentd sessions  (${now})\n\n${renderTable(rows)}\n`);
+        }
+      };
+      let stopped = false;
+      await new Promise<void>((resolve) => {
+        process.once("SIGINT", () => {
+          stopped = true;
+          process.stdout.write("\n");
+          resolve();
+        });
+        const loop = async () => {
+          await tick();
+          if (!stopped) setTimeout(loop, INTERVAL_MS);
+        };
+        loop();
+      });
+      return c.ok({ sessions: [] });
+    }
+
+    const active = await fetchSessionRows();
+    if (active.length === 0) {
       return c.ok({ sessions: [], message: "No active sessions" });
     }
-    const rows = await Promise.all(
-      sessions.map(async (s) => {
-        const state = await mgr.containerState(s.containerId);
-        if (state !== "running") {
-          if (s.autoRemove) {
-            await mgr.cancel(s.label);
-            return null;
-          }
-          if (state === "missing") {
-            mgr.removeSession(s.label);
-            return null;
-          }
-        }
-        return {
-          label: s.label,
-          agent: s.agent,
-          status: state === "running" ? "running" : "suspended",
-          containerId: s.containerId?.slice(0, 12) ?? "",
-          age: formatAge(s.startedAt),
-        };
-      }),
-    );
-    const active = rows.filter((r) => r !== null);
     return c.ok({ sessions: active });
   },
 });
