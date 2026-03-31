@@ -77,9 +77,7 @@ async function fetchSessionRows(forWatch = false): Promise<SessionRow[]> {
     const terminated = [...recentlyTerminated.values()].filter(
       (t) => !active.some((a) => a.label === t.label),
     );
-    const all = [...active, ...terminated];
-    recentlyTerminated.clear();
-    return all;
+    return [...active, ...terminated];
   }
   return active;
 }
