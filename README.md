@@ -94,6 +94,15 @@ agentd shell --mount .:/workspace:ro  # read-only mount
 agentd shell --rm                     # throwaway session
 ```
 
+### Clipboard In Host tmux
+
+`agentd` runs an inner `tmux` inside the container. To copy text from that inner shell all the way to your desktop clipboard when you launched `agentd` from a host `tmux`, make sure the host `tmux` forwards clipboard escape sequences:
+
+```tmux
+set -s set-clipboard on
+set -g allow-passthrough on
+```
+
 ## Security
 
 Containers are hardened by default:
@@ -104,4 +113,3 @@ Containers are hardened by default:
 - **Non-root**: sessions run as `agent` user (UID 1000)
 
 **Be aware of what you mount.** The agent has full read access to anything mounted into `/workspace`, including git history, config files, and embedded secrets. Mounted content may be sent to Anthropic or OpenAI servers as part of the agent's conversation context. If the agent is compromised or tricked via prompt injection, mounted data could also be exfiltrated over the network. Avoid mounting directories containing credentials or sensitive data you don't want exposed.
-

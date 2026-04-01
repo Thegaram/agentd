@@ -11,10 +11,11 @@ RUN npm install -g @openai/codex
 
 # Codex configuration: full access inside the hardened container
 COPY --chown=agent:agent config.toml /home/agent/.codex/config.toml
+COPY --chown=agent:agent apply-theme.mjs /agentd/apply-codex-theme.mjs
 
 # Auth check script for tmux status bar
 COPY --chown=agent:agent check-auth.sh /agentd/check-auth.sh
-RUN chmod +x /agentd/check-auth.sh
+RUN chmod +x /agentd/check-auth.sh /agentd/apply-codex-theme.mjs
 
 # Append Codex-specific credential cleanup to .bashrc
 RUN printf '%s\n' \

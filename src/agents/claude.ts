@@ -5,6 +5,15 @@ import { homedir } from "node:os";
 import type { AgentBackend } from "./types.js";
 import type { Paths } from "../paths.js";
 
+function readClaudeTheme(): string | undefined {
+  try {
+    const raw = readFileSync(join(homedir(), ".claude.json"), "utf-8");
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (typeof parsed["theme"] === "string") return parsed["theme"];
+  } catch { /* missing or unreadable */ }
+  return undefined;
+}
+
 export const claude: AgentBackend = {
   name: "claude",
   dockerImage: "agentd-claude:latest",
@@ -37,12 +46,11 @@ export const claude: AgentBackend = {
   noAuthWarning: "Warning: no --secret passed, Claude will prompt for login",
 
   hostTheme(): string | undefined {
-    try {
-      const raw = readFileSync(join(homedir(), ".claude.json"), "utf-8");
-      const parsed = JSON.parse(raw) as Record<string, unknown>;
-      if (typeof parsed["theme"] === "string") return parsed["theme"];
-    } catch { /* missing or unreadable */ }
-    return undefined;
+    return readClaudeTheme();
+  },
+
+  explicitHostTheme(): string | undefined {
+    return readClaudeTheme();
   },
 
   applyThemeCommand(): string {

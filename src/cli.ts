@@ -279,6 +279,7 @@ cli.command("shell", {
     const agent = resolveAgent(c.options);
     const agentName = agent.name;
     const backend = getBackend(agentName);
+    const explicitTheme = await backend.explicitHostTheme?.();
 
     const cwd = process.cwd();
     const rm = c.options.rm ?? false;
@@ -314,6 +315,11 @@ cli.command("shell", {
         if (c.options.model != null && c.options.model !== existing.model) {
           const has = existing.model ?? "default";
           conflicts.push(`model: existing session uses ${has}, wanted ${c.options.model}`);
+        }
+        if (explicitTheme != null && explicitTheme !== existing.theme) {
+          const has = existing.theme ?? "none";
+          const wanted = explicitTheme;
+          conflicts.push(`theme: existing session uses ${has}, wanted ${wanted}`);
         }
         if (c.options.rm != null && rm !== existing.autoRemove) {
           const has = existing.autoRemove ? "auto-remove" : "persistent";
@@ -458,17 +464,11 @@ function slugify(name: string): string {
     || "shell";
 }
 
-/**
- * After detaching, wait briefly for the container to settle.
- * On tmux detach the container stays running; on agent exit the
- * entrypoint loop takes up to ~1s to notice and stop the container.
- */
 async function resolveStatus(mgr: SessionManager, containerId: string): Promise<string> {
-  // Quick check — if already stopped, no need to wait
-  if (await mgr.containerState(containerId) !== "running") return "suspended";
-  // The entrypoint's `while tmux has-session; do sleep 1; done` loop
-  // takes up to 1s to notice the session ended. Wait 1.5s (1s + buffer).
-  await new Promise((r) => setTimeout(r, 1500));
+  // Do not block interactive shell exit just to refine the final label.
+  // If the container is still running immediately after detach, treat it as
+  // a background session; if the entrypoint loop stops it moments later, the
+  // next `agentd ls` will reflect that settled state.
   return await mgr.containerState(containerId) === "running" ? "running (background)" : "suspended";
 }
 

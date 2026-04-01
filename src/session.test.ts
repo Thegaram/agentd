@@ -7,7 +7,13 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { SessionManager, parseDockerPortOutput, shortenMountPath } from "./session.js";
+import {
+  SessionManager,
+  forwardedTerminalEnv,
+  parseDockerPortOutput,
+  shortenMountPath,
+  resolveContainerTerm,
+} from "./session.js";
 import { claude } from "./agents/claude.js";
 import { codex } from "./agents/codex.js";
 import { aider } from "./agents/aider.js";
@@ -158,5 +164,43 @@ describe("shortenMountPath", () => {
 
   it("preserves root path as-is", () => {
     expect(shortenMountPath("/")).toBe("/");
+  });
+});
+
+describe("resolveContainerTerm", () => {
+  it("uses tmux-256color when launched from tmux", () => {
+    expect(resolveContainerTerm({ TERM: "xterm-256color", TMUX: "/tmp/tmux-1000/default,1,0" }))
+      .toBe("tmux-256color");
+  });
+
+  it("preserves screen-style nesting when TERM starts with screen", () => {
+    expect(resolveContainerTerm({ TERM: "screen-256color" }))
+      .toBe("screen-256color");
+  });
+
+  it("falls back to xterm-256color outside tmux", () => {
+    expect(resolveContainerTerm({ TERM: "xterm-kitty" }))
+      .toBe("xterm-256color");
+  });
+});
+
+describe("forwardedTerminalEnv", () => {
+  it("forwards supported host terminal identity variables", () => {
+    expect(forwardedTerminalEnv({
+      TERM_PROGRAM: "WezTerm",
+      WEZTERM_VERSION: "20240203",
+      COLORFGBG: "15;7",
+    })).toEqual([
+      ["COLORFGBG", "15;7"],
+      ["TERM_PROGRAM", "WezTerm"],
+      ["WEZTERM_VERSION", "20240203"],
+    ]);
+  });
+
+  it("skips empty values", () => {
+    expect(forwardedTerminalEnv({
+      TERM_PROGRAM: "",
+      COLORFGBG: undefined,
+    })).toEqual([]);
   });
 });

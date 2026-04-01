@@ -4,6 +4,7 @@ export const SessionStateSchema = z.object({
   label: z.string(),
   agent: z.string().default("claude"),
   model: z.string().optional(),
+  theme: z.string().optional(),
   containerId: z.string(),
   startedAt: z.iso.datetime(),
   autoRemove: z.boolean().default(false),

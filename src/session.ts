@@ -27,6 +27,28 @@ const HARDENING_FLAGS = [
   "--add-host", "169.254.169.254:127.0.0.1",
 ];
 
+let hasWarnedNestedTmuxClipboard = false;
+const FORWARDED_TERMINAL_ENV_VARS = [
+  "COLORFGBG",
+  "COLORTERM",
+  "TERM_PROGRAM",
+  "TERM_PROGRAM_VERSION",
+  "TERM_SESSION_ID",
+  "WEZTERM_VERSION",
+  "ITERM_PROFILE",
+  "ITERM_PROFILE_NAME",
+  "KITTY_WINDOW_ID",
+  "KONSOLE_VERSION",
+  "GNOME_TERMINAL_SCREEN",
+  "VTE_VERSION",
+  "WT_SESSION",
+  "LC_TERMINAL",
+  "LC_TERMINAL_VERSION",
+  "ZELLIJ",
+  "ZELLIJ_SESSION_NAME",
+  "ZELLIJ_VERSION",
+] as const;
+
 /**
  * Shared container arg prefix: name and hardening.
  */
@@ -81,6 +103,50 @@ function secretSourceLines(scopes: string[]): string[] {
 }
 
 /**
+ * Preserve tmux nesting information without depending on host-specific TERM entries
+ * that may not exist in the container terminfo database.
+ */
+export function resolveContainerTerm(env: NodeJS.ProcessEnv = process.env): string {
+  const term = env["TERM"] ?? "";
+  if (env["TMUX"] || term.startsWith("tmux")) return "tmux-256color";
+  if (term.startsWith("screen")) return "screen-256color";
+  return "xterm-256color";
+}
+
+export function forwardedTerminalEnv(env: NodeJS.ProcessEnv = process.env): Array<[string, string]> {
+  return FORWARDED_TERMINAL_ENV_VARS.flatMap((key) => {
+    const value = env[key];
+    return value ? [[key, value] as [string, string]] : [];
+  });
+}
+
+function readHostTmuxOption(args: string[]): string {
+  try {
+    return execFileSync("tmux", args, { encoding: "utf8" }).trim();
+  } catch {
+    return "";
+  }
+}
+
+function warnIfHostTmuxMayBlockClipboard(): void {
+  if (hasWarnedNestedTmuxClipboard || !process.env["TMUX"]) return;
+  hasWarnedNestedTmuxClipboard = true;
+
+  const setClipboard = readHostTmuxOption(["show", "-s", "-v", "set-clipboard"]);
+  const allowPassthrough = readHostTmuxOption(["show", "-g", "-v", "allow-passthrough"]);
+  const clipboardEnabled = setClipboard === "on";
+  const passthroughEnabled = allowPassthrough === "on" || allowPassthrough === "all";
+  if (clipboardEnabled || passthroughEnabled) return;
+
+  console.warn(
+    "Warning: host tmux is not forwarding clipboard escape sequences "
+      + `(set-clipboard=${setClipboard || "unknown"}, allow-passthrough=${allowPassthrough || "unknown"}). `
+      + "Nested agentd selections may stay inside tmux buffers only. "
+      + "Add `set -s set-clipboard on` and/or `set -g allow-passthrough on` to your host ~/.tmux.conf.",
+  );
+}
+
+/**
  * Parse `docker port` output into a display string, deduplicating IPv4/IPv6 entries.
  * Input:  "3000/tcp -> 0.0.0.0:49152\n3000/tcp -> [::]:49152"
  * Output: "3000→49152"
@@ -125,6 +191,7 @@ export interface InteractiveOptions {
 export interface DryRunResult {
   dockerArgs: string[];
   script: string;
+  theme?: string | undefined;
 }
 
 export class SessionManager {
@@ -154,11 +221,14 @@ export class SessionManager {
       );
     }
 
-    const theme = backend.hostTheme?.();
+    const theme = await backend.hostTheme?.();
     const dockerArgs = [
       ...buildBaseContainerArgs(opts.name),
-      "-e", "TERM=xterm-256color",
+      "-e", `TERM=${resolveContainerTerm()}`,
     ];
+    for (const [key, value] of forwardedTerminalEnv()) {
+      dockerArgs.push("-e", `${key}=${value}`);
+    }
     if (theme) dockerArgs.push("-e", `AGENTD_THEME=${theme}`);
 
     for (const mount of opts.mounts) {
@@ -222,11 +292,11 @@ export class SessionManager {
       backend.startCommand(opts.model),
     ].join("\n");
 
-    return { dockerArgs, script };
+    return { dockerArgs, script, theme };
   }
 
   async spawnInteractive(opts: InteractiveOptions): Promise<string> {
-    const { dockerArgs, script } = await this.buildSpawnCommand(opts);
+    const { dockerArgs, script, theme } = await this.buildSpawnCommand(opts);
 
     const containerId = await dockerCreate(dockerArgs);
 
@@ -241,6 +311,7 @@ export class SessionManager {
     this.saveSession({
       label: opts.name,
       agent: opts.backend.name,
+      theme,
       containerId,
       startedAt: new Date().toISOString(),
       autoRemove: opts.rm ?? false,
@@ -373,6 +444,7 @@ export class SessionManager {
     }
 
     try {
+      warnIfHostTmuxMayBlockClipboard();
       dockerAttachSync(session.containerId);
     } finally {
       // Disable mouse modes, exit alternate screen, restore terminal
