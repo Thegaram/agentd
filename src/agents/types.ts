@@ -1,5 +1,7 @@
 import type { Paths } from "../paths.js";
 
+type MaybePromise<T> = T | Promise<T>;
+
 /**
  * Everything that differs between coding agent runtimes (Claude Code, Codex, etc.).
  * Session orchestration, Docker lifecycle, and security hardening stay in session.ts.
@@ -50,7 +52,10 @@ export interface AgentBackend {
   // ── Host theme forwarding (optional) ─────────────────────────────
 
   /** Read a theme value from the host's agent config (or undefined). */
-  hostTheme?(): string | undefined;
+  hostTheme?(): MaybePromise<string | undefined>;
+
+  /** Read an explicit host theme preference that should affect resume conflicts. */
+  explicitHostTheme?(): MaybePromise<string | undefined>;
 
   /** Bash command to apply AGENTD_THEME inside the container, or null. */
   applyThemeCommand?(): string | null;

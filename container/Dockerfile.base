@@ -151,8 +151,8 @@ ARG AGENTD_COMMIT=dev
 RUN echo "${AGENTD_COMMIT}-$(cat /tmp/build-date)" > /agentd/version && rm -f /tmp/build-date
 
 # Copy shared scripts (agent-specific check-auth.sh is added per-agent)
-COPY set-statusbar.sh /agentd/
-RUN chmod +x /agentd/set-statusbar.sh
+COPY set-statusbar.sh copy-clipboard.sh /agentd/
+RUN chmod +x /agentd/set-statusbar.sh /agentd/copy-clipboard.sh
 
 # Base shell prompt (agent Dockerfiles append credential cleanup)
 RUN printf '%s\n' \
@@ -167,9 +167,11 @@ WORKDIR /workspace
 # tmux config: truecolor passthrough, theme detection, mouse
 RUN printf '%s\n' \
     'set -g default-terminal "tmux-256color"' \
-    'set -as terminal-features ",xterm-256color:RGB"' \
-    'set -as terminal-features ",tmux-256color:RGB"' \
+    'set -as terminal-features ",xterm*:clipboard:RGB"' \
+    'set -as terminal-features ",tmux*:clipboard:RGB"' \
+    'set -as terminal-features ",screen*:clipboard"' \
     'set -g allow-passthrough on' \
+    'set -g copy-command "bash /agentd/copy-clipboard.sh"' \
     'set -g mouse on' \
     > /home/agent/.tmux.conf \
   && chown agent:agent /home/agent/.tmux.conf

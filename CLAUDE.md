@@ -56,7 +56,7 @@ completions/
 - **Base image + agent layers**: `agentd-base` has dev tools, each agent image adds its runtime and config
 - **Docker operations in `docker.ts`** — session.ts does orchestration only
 - **`SessionStore` owns state.json** — not inlined in SessionManager
-- **Host theme forwarded via `AGENTD_THEME` env var** — if diffs look wrong in containers, check host `~/.claude.json` has the correct `"theme"` value
+- **Host theme forwarded via `AGENTD_THEME` env var** — Claude reads `~/.claude.json` `"theme"`, Codex reads `~/.codex/config.toml` `[tui].theme`; if unset, Codex falls back to host light/dark detection (`COLORFGBG`, macOS appearance under tmux, then OSC 11)
 
 ## Adding a new agent backend
 
