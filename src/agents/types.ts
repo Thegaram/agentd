@@ -16,6 +16,11 @@ export interface AgentBackend {
   /** Default model used when no --model override is given. */
   readonly defaultModel: string;
 
+  // ── Container environment ────────────────────────────────────────
+
+  /** Extra environment variables to set inside the container. */
+  readonly containerEnv?: Readonly<Record<string, string>>;
+
   // ── Credentials ──────────────────────────────────────────────────
 
   /** Env vars that shadow a credential file and must be unset when it's mounted. */
