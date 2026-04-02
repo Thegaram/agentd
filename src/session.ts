@@ -230,6 +230,11 @@ export class SessionManager {
       dockerArgs.push("-e", `${key}=${value}`);
     }
     if (theme) dockerArgs.push("-e", `AGENTD_THEME=${theme}`);
+    if (backend.containerEnv) {
+      for (const [key, value] of Object.entries(backend.containerEnv)) {
+        dockerArgs.push("-e", `${key}=${value}`);
+      }
+    }
 
     for (const mount of opts.mounts) {
       dockerArgs.push("-v", mount);

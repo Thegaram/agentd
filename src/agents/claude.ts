@@ -18,6 +18,7 @@ export const claude: AgentBackend = {
   name: "claude",
   dockerImage: "agentd-claude:latest",
   defaultModel: "opus[1m]",
+  containerEnv: { CLAUDE_CODE_NO_FLICKER: "1" },
 
   credentialShadowVars: ["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY"],
 
