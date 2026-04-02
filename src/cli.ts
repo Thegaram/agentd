@@ -465,11 +465,14 @@ function slugify(name: string): string {
 }
 
 async function resolveStatus(mgr: SessionManager, containerId: string): Promise<string> {
-  // Do not block interactive shell exit just to refine the final label.
-  // If the container is still running immediately after detach, treat it as
-  // a background session; if the entrypoint loop stops it moments later, the
-  // next `agentd ls` will reflect that settled state.
-  return await mgr.containerState(containerId) === "running" ? "running (background)" : "suspended";
+  // After detach the container may still be "running" for a brief moment
+  // while Docker tears it down.  Poll a few times so we report the settled
+  // state rather than a stale intermediate.
+  for (let i = 0; i < 5; i++) {
+    if (await mgr.containerState(containerId) !== "running") return "suspended";
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  return "running (background)";
 }
 
 /** Shell-quote a single argument if it contains special characters. */

@@ -76,18 +76,31 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
   && apt-get install -y gh \
   && rm -rf /var/lib/apt/lists/*
 
-# Install logcli (Grafana Loki CLI)
+# Install CLI tools: logcli, yq, kubectl, argocd, AWS CLI v2
 RUN ARCH=$(dpkg --print-architecture) \
+  && case "$ARCH" in amd64) AWS_ARCH="x86_64" ;; arm64) AWS_ARCH="aarch64" ;; *) echo "unsupported arch: $ARCH" >&2; exit 1 ;; esac \
+  # logcli (Grafana Loki CLI)
   && curl -fsSL "https://github.com/grafana/loki/releases/latest/download/logcli-linux-${ARCH}.zip" -o /tmp/logcli.zip \
   && unzip /tmp/logcli.zip -d /usr/local/bin \
   && chmod +x /usr/local/bin/logcli-linux-${ARCH} \
   && mv /usr/local/bin/logcli-linux-${ARCH} /usr/local/bin/logcli \
-  && rm /tmp/logcli.zip
-
-# Install yq (YAML/JSON/XML processor, like jq but for YAML)
-RUN ARCH=$(dpkg --print-architecture) \
+  && rm /tmp/logcli.zip \
+  # yq (YAML/JSON/XML processor)
   && curl -fsSL "https://github.com/mikefarah/yq/releases/latest/download/yq_linux_${ARCH}" -o /usr/local/bin/yq \
-  && chmod +x /usr/local/bin/yq
+  && chmod +x /usr/local/bin/yq \
+  # kubectl
+  && curl -fsSL "https://dl.k8s.io/release/$(curl -fsSL https://dl.k8s.io/release/stable.txt)/bin/linux/${ARCH}/kubectl" \
+       -o /usr/local/bin/kubectl \
+  && chmod +x /usr/local/bin/kubectl \
+  # Argo CD CLI
+  && curl -fsSL "https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-${ARCH}" \
+       -o /usr/local/bin/argocd \
+  && chmod +x /usr/local/bin/argocd \
+  # AWS CLI v2
+  && curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${AWS_ARCH}.zip" -o /tmp/awscli.zip \
+  && unzip -q /tmp/awscli.zip -d /tmp \
+  && /tmp/aws/install \
+  && rm -rf /tmp/aws /tmp/awscli.zip
 
 # Non-root user (created early so Rust installs to agent's home)
 RUN useradd -m -s /bin/bash agent
