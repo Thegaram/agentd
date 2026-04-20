@@ -28,7 +28,10 @@ mkdir -p ~/.agentd/secrets && chmod 700 ~/.agentd/secrets
 security find-generic-password -a "$USER" -s "Claude Code-credentials" -w 2>/dev/null \
   > ~/.agentd/secrets/claude-oauth.json && chmod 600 ~/.agentd/secrets/claude-oauth.json
 
-# Option 2: API key or setup-token (uses API balance, no Max features)
+# Option 2: OAuth token via claude setup-token (enables Max features, no macOS Keychain needed)
+echo "CLAUDE_CODE_OAUTH_TOKEN=$(claude setup-token)" > ~/.agentd/secrets/claude.env && chmod 600 ~/.agentd/secrets/claude.env
+
+# Option 3: Anthropic Platform API key (uses API balance, no Max features)
 echo "ANTHROPIC_API_KEY=sk-ant-..." > ~/.agentd/secrets/claude.env && chmod 600 ~/.agentd/secrets/claude.env
 ```
 </details>

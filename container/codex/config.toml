@@ -16,6 +16,41 @@ url = "https://developers.openai.com/mcp"
 
 [projects."/workspace"]
 trust_level = "trusted"
+disable_commands = [
+  "gh pr create*",
+  "gh pr close*",
+  "gh pr merge*",
+  "gh pr edit*",
+  "gh pr comment*",
+  "gh pr review*",
+  "gh pr ready*",
+  "gh pr reopen*",
+  "gh issue create*",
+  "gh issue close*",
+  "gh issue edit*",
+  "gh issue comment*",
+  "gh issue delete*",
+  "gh issue reopen*",
+  "gh repo create*",
+  "gh repo delete*",
+  "gh repo fork*",
+  "gh repo rename*",
+  "gh repo archive*",
+  "gh release create*",
+  "gh release delete*",
+  "gh release edit*",
+  "gh label create*",
+  "gh label delete*",
+  "gh label edit*",
+  "gh api -X POST*",
+  "gh api -X PUT*",
+  "gh api -X PATCH*",
+  "gh api -X DELETE*",
+  "gh api --method POST*",
+  "gh api --method PUT*",
+  "gh api --method PATCH*",
+  "gh api --method DELETE*",
+]
 
 [shell_environment_policy]
 inherit = "core"

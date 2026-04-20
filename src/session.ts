@@ -12,9 +12,11 @@ import {
   dockerStart,
   dockerRemove,
   dockerInspectState,
+  dockerInspectExit,
   dockerExec,
   dockerCp,
   dockerAttachSync,
+  dockerLogs,
   dockerPort,
 } from "./docker.js";
 
@@ -172,6 +174,26 @@ export function parseDockerPortOutput(raw: string): string {
 export function shortenMountPath(hostPath: string): string {
   const name = basename(hostPath);
   return name || hostPath;  // basename("/") returns "", keep original
+}
+
+/**
+ * Build a diagnostic error message for a container that exited before tmux
+ * came up. Includes exit code, Docker's own error if any, and the tail of
+ * container logs (where entrypoint/startup failures surface).
+ */
+async function formatContainerExitError(containerId: string): Promise<string> {
+  const [exit, logs] = await Promise.all([
+    dockerInspectExit(containerId),
+    dockerLogs(containerId),
+  ]);
+  const parts = ["Container exited before tmux started"];
+  if (exit) {
+    parts.push(`(exit ${exit.exitCode}${exit.error ? `: ${exit.error}` : ""})`);
+  }
+  let msg = parts.join(" ");
+  if (logs) msg += `\n\nLast container output:\n${logs}`;
+  msg += `\n\nRun 'docker logs ${containerId.slice(0, 12)}' for the full log.`;
+  return msg;
 }
 
 export interface SessionManagerOptions {
@@ -410,10 +432,16 @@ export class SessionManager {
         await dockerExec(containerId, ["tmux", "has-session", "-t", "agent"]);
         return;
       } catch {
+        if ((await dockerInspectState(containerId)) !== "running") {
+          throw new Error(await formatContainerExitError(containerId));
+        }
         await new Promise((r) => setTimeout(r, 250));
       }
     }
-    throw new Error("tmux session failed to start");
+    const logs = await dockerLogs(containerId);
+    throw new Error(
+      `tmux session did not start within 7.5s (container still running).${logs ? `\n\nLast container output:\n${logs}` : ""}`,
+    );
   }
 
   async attach(label: string): Promise<void> {
