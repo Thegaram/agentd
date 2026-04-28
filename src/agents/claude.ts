@@ -55,6 +55,6 @@ export const claude: AgentBackend = {
   },
 
   applyThemeCommand(): string {
-    return `[ -z "$AGENTD_THEME" ] || jq --arg t "$AGENTD_THEME" '.theme=$t' /home/agent/.claude.json > /tmp/cj && mv /tmp/cj /home/agent/.claude.json`;
+    return `[ -z "$AGENTD_THEME" ] || { jq --arg t "$AGENTD_THEME" '.theme=$t' /home/agent/.claude.json > /tmp/cj && mv /tmp/cj /home/agent/.claude.json; }`;
   },
 };

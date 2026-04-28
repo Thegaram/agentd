@@ -52,6 +52,34 @@ export async function dockerCp(src: string, dest: string): Promise<void> {
   await execFileAsync("docker", ["cp", src, dest]);
 }
 
+export async function dockerLogs(
+  containerId: string,
+  tailLines = 20,
+): Promise<string> {
+  try {
+    const { stdout, stderr } = await execFileAsync("docker", [
+      "logs", "--tail", String(tailLines), containerId,
+    ]);
+    return [stdout, stderr].filter(Boolean).join("").trim();
+  } catch {
+    return "";
+  }
+}
+
+export async function dockerInspectExit(
+  containerId: string,
+): Promise<{ exitCode: number; error: string } | null> {
+  try {
+    const { stdout } = await execFileAsync("docker", [
+      "inspect", "-f", "{{.State.ExitCode}}|{{.State.Error}}", containerId,
+    ]);
+    const [code, ...rest] = stdout.trim().split("|");
+    return { exitCode: Number(code), error: rest.join("|") };
+  } catch {
+    return null;
+  }
+}
+
 export async function dockerPort(containerId: string): Promise<string> {
   try {
     const { stdout } = await execFileAsync("docker", ["port", containerId]);

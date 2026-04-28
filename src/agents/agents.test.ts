@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { execSync } from "node:child_process";
 import { getBackend, AGENT_NAMES, DEFAULT_AGENT } from "./index.js";
 import { claude } from "./claude.js";
 import {
@@ -87,6 +88,40 @@ describe("claude backend", () => {
 
   it("has apply theme command", () => {
     expect(claude.applyThemeCommand?.()).toBeTruthy();
+  });
+
+  it("apply theme command is a no-op when AGENTD_THEME is empty", () => {
+    const tmp = execSync("mktemp -d").toString().trim();
+    try {
+      const cjson = `${tmp}/.claude.json`;
+      execSync(`echo '{"theme":"dark"}' > ${cjson}`);
+      const cmd = claude.applyThemeCommand!()!.replaceAll(
+        "/home/agent/.claude.json",
+        cjson,
+      );
+      execSync(`bash -c '${cmd.replaceAll("'", "'\\''")}'`, { env: {} });
+      expect(execSync(`cat ${cjson}`).toString()).toContain('"theme":"dark"');
+    } finally {
+      execSync(`rm -r ${tmp}`);
+    }
+  });
+
+  it("apply theme command writes theme when AGENTD_THEME is set", () => {
+    const tmp = execSync("mktemp -d").toString().trim();
+    try {
+      const cjson = `${tmp}/.claude.json`;
+      execSync(`echo '{"theme":"dark"}' > ${cjson}`);
+      const cmd = claude.applyThemeCommand!()!.replaceAll(
+        "/home/agent/.claude.json",
+        cjson,
+      );
+      execSync(`bash -c '${cmd.replaceAll("'", "'\\''")}'`, {
+        env: { AGENTD_THEME: "light" },
+      });
+      expect(execSync(`cat ${cjson}`).toString()).toContain('"theme": "light"');
+    } finally {
+      execSync(`rm -r ${tmp}`);
+    }
   });
 });
 

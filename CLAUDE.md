@@ -102,7 +102,7 @@ agentd cancel <name>      # remove
 
 ## Making changes
 
-- **Run `npm test` after every change.** Verify each step before moving on.
+- **Run `npm run typecheck`, `npm run lint`, and `npm test` after every change.** Verify each step before moving on — don't batch.
 - **Run `npm run build` before considering a change complete.**
 - **Extract testable logic from side-effecting functions.** Pull decision logic into pure functions and unit test them.
 - **Define shared constants once.** When two components must agree on a value, share it or cross-reference with a comment.
