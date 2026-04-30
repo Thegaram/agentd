@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import { Cli, z } from "incur";
 import { SessionManager } from "./session.js";
+import type { ContainerState } from "./docker.js";
 import { paths } from "./paths.js";
 import { getBackend, AGENT_NAMES, DEFAULT_AGENT } from "./agents/index.js";
 
@@ -29,9 +30,10 @@ type SessionRow = {
 };
 
 const STATUS_DISPLAY: Record<string, string> = {
-  running:    "\x1b[32m●\x1b[0m running",     // green
-  suspended:  "\x1b[34m●\x1b[0m suspended",   // blue
-  terminated: "\x1b[31m●\x1b[0m terminated",   // red
+  running:    "\x1b[32m●\x1b[0m running",    // green
+  suspended:  "\x1b[34m●\x1b[0m suspended",  // blue
+  terminated: "\x1b[31m●\x1b[0m terminated", // red
+  unknown:    "\x1b[33m●\x1b[0m unknown",    // yellow
 };
 
 function statusDisplay(status: string): string {
@@ -54,24 +56,35 @@ function toRow(s: { label: string; agent: string; containerId: string; startedAt
 
 async function fetchSessionRows(forWatch = false): Promise<SessionRow[]> {
   const sessions = mgr.listSessions();
+  let inspectFailure: string | undefined;
   const rows = await Promise.all(
     sessions.map(async (s) => {
-      const state = await mgr.containerState(s.containerId);
-      if (state !== "running") {
-        if (forWatch) recentlyTerminated.set(s.label, toRow(s, "terminated"));
-        if (s.autoRemove) {
-          await mgr.cancel(s.label);
-          return null;
-        }
-        if (state === "missing") {
-          mgr.removeSession(s.label);
-          return null;
-        }
+      let state: ContainerState;
+      try {
+        state = await mgr.containerState(s.containerId);
+      } catch (e) {
+        inspectFailure ??= (e as Error).message;
+        return toRow(s, "unknown");
       }
-      return toRow(s, state === "running" ? "running" : "suspended");
+      if (state !== "running" && s.autoRemove) {
+        // Capture before cancel() so the autoRemoved row stays visible briefly
+        // in --watch after vanishing from listSessions.
+        if (forWatch) recentlyTerminated.set(s.label, toRow(s, "terminated"));
+        await mgr.cancel(s.label);
+        return null;
+      }
+      const status = state === "running" ? "running"
+        : state === "stopped" ? "suspended"
+        : "terminated";
+      return toRow(s, status);
     }),
   );
   const active = rows.filter((r) => r !== null);
+
+  // Suppressed in --watch to avoid per-tick spam.
+  if (inspectFailure && !forWatch) {
+    process.stderr.write(`Warning: ${inspectFailure}\n`);
+  }
 
   if (forWatch) {
     const terminated = [...recentlyTerminated.values()].filter(
@@ -304,58 +317,54 @@ cli.command("shell", {
 
     const existing = mgr.getSession(name);
     if (existing) {
-      const alive = await mgr.containerExists(existing.containerId);
-      if (!alive) {
-        mgr.removeSession(name);
-      } else {
-        const conflicts: string[] = [];
-        if (agent.explicit && agentName !== existing.agent) {
-          conflicts.push(`agent: existing session uses ${existing.agent}, wanted ${agentName}`);
-        }
-        if (c.options.model != null && c.options.model !== existing.model) {
-          const has = existing.model ?? "default";
-          conflicts.push(`model: existing session uses ${has}, wanted ${c.options.model}`);
-        }
-        if (explicitTheme != null && explicitTheme !== existing.theme) {
-          const has = existing.theme ?? "none";
-          const wanted = explicitTheme;
-          conflicts.push(`theme: existing session uses ${has}, wanted ${wanted}`);
-        }
-        if (c.options.rm != null && rm !== existing.autoRemove) {
-          const has = existing.autoRemove ? "auto-remove" : "persistent";
-          conflicts.push(`rm: existing session is ${has}`);
-        }
-        if (c.options.secret != null && !arraysEqual(existing.secrets ?? [], secrets)) {
-          const has = (existing.secrets ?? []).length > 0 ? (existing.secrets ?? []).join(", ") : "none";
-          conflicts.push(`secrets: existing session has [${has}], wanted [${secrets.join(", ")}]`);
-        }
-        if ((c.options.mount != null || c.options["skip-mount"] != null) && !arraysEqual(existing.mounts ?? [], mounts)) {
-          conflicts.push(`mounts: existing session has different mounts`);
-        }
-        if ((c.options.port != null || c.options["skip-ports"] != null) && !arraysEqual(existing.ports ?? [], ports)) {
-          conflicts.push(`ports: existing session has [${(existing.ports ?? []).join(", ")}], wanted [${ports.join(", ")}]`);
-        }
-        if (conflicts.length > 0) {
-          throw new Error(
-            `Session "${name}" exists with different options:\n`
-              + conflicts.map((msg) => `  - ${msg}`).join("\n") + "\n"
-              + `Options:\n`
-              + `  Resume as-is:    agentd shell ${name}\n`
-              + `  Cancel (loses unsaved work and conversation): agentd cancel ${name}`,
-          );
-        }
-        try {
-          await mgr.attach(name);
-        } finally {
-          if (existing.autoRemove) {
-            await mgr.cancel(name);
-          }
-        }
-        const status = existing.autoRemove
-          ? "removed"
-          : await resolveStatus(mgr, existing.containerId);
-        return c.ok({ name, agent: existing.agent, containerId: existing.containerId.slice(0, 12), status });
+      const conflicts: string[] = [];
+      if (agent.explicit && agentName !== existing.agent) {
+        conflicts.push(`agent: existing session uses ${existing.agent}, wanted ${agentName}`);
       }
+      if (c.options.model != null && c.options.model !== existing.model) {
+        const has = existing.model ?? "default";
+        conflicts.push(`model: existing session uses ${has}, wanted ${c.options.model}`);
+      }
+      if (explicitTheme != null && explicitTheme !== existing.theme) {
+        const has = existing.theme ?? "none";
+        const wanted = explicitTheme;
+        conflicts.push(`theme: existing session uses ${has}, wanted ${wanted}`);
+      }
+      if (c.options.rm != null && rm !== existing.autoRemove) {
+        const has = existing.autoRemove ? "auto-remove" : "persistent";
+        conflicts.push(`rm: existing session is ${has}`);
+      }
+      if (c.options.secret != null && !arraysEqual(existing.secrets ?? [], secrets)) {
+        const has = (existing.secrets ?? []).length > 0 ? (existing.secrets ?? []).join(", ") : "none";
+        conflicts.push(`secrets: existing session has [${has}], wanted [${secrets.join(", ")}]`);
+      }
+      if ((c.options.mount != null || c.options["skip-mount"] != null) && !arraysEqual(existing.mounts ?? [], mounts)) {
+        conflicts.push(`mounts: existing session has different mounts`);
+      }
+      if ((c.options.port != null || c.options["skip-ports"] != null) && !arraysEqual(existing.ports ?? [], ports)) {
+        conflicts.push(`ports: existing session has [${(existing.ports ?? []).join(", ")}], wanted [${ports.join(", ")}]`);
+      }
+      if (conflicts.length > 0) {
+        throw new Error(
+          `Session "${name}" exists with different options:\n`
+            + conflicts.map((msg) => `  - ${msg}`).join("\n") + "\n"
+            + `Options:\n`
+            + `  Resume as-is:    agentd shell ${name}\n`
+            + `  Cancel (loses unsaved work and conversation): agentd cancel ${name}`,
+        );
+      }
+      // attach() throws if the container is missing or the daemon is unreachable.
+      try {
+        await mgr.attach(name);
+      } finally {
+        if (existing.autoRemove) {
+          await mgr.cancel(name);
+        }
+      }
+      const status = existing.autoRemove
+        ? "removed"
+        : await resolveStatus(mgr, existing.containerId);
+      return c.ok({ name, agent: existing.agent, containerId: existing.containerId.slice(0, 12), status });
     }
 
     const model = c.options.model ?? backend.defaultModel;
