@@ -18,6 +18,7 @@ import {
   dockerAttachSync,
   dockerLogs,
   dockerPort,
+  type ContainerState,
 } from "./docker.js";
 
 const HARDENING_FLAGS = [
@@ -376,12 +377,8 @@ export class SessionManager {
     this.removeSession(label);
   }
 
-  async containerState(containerId: string): Promise<"running" | "stopped" | "missing"> {
+  async containerState(containerId: string): Promise<ContainerState> {
     return dockerInspectState(containerId);
-  }
-
-  async containerExists(containerId: string): Promise<boolean> {
-    return await this.containerState(containerId) !== "missing";
   }
 
   async isContainerRunning(containerId: string): Promise<boolean> {
@@ -432,7 +429,13 @@ export class SessionManager {
         await dockerExec(containerId, ["tmux", "has-session", "-t", "agent"]);
         return;
       } catch {
-        if ((await dockerInspectState(containerId)) !== "running") {
+        // A transient inspect failure (e.g. daemon hiccup) shouldn't abort
+        // startup — keep polling. Real exits surface on the next iteration.
+        let state: ContainerState | undefined;
+        try {
+          state = await dockerInspectState(containerId);
+        } catch { /* keep polling */ }
+        if (state !== undefined && state !== "running") {
           throw new Error(await formatContainerExitError(containerId));
         }
         await new Promise((r) => setTimeout(r, 250));
@@ -440,7 +443,7 @@ export class SessionManager {
     }
     const logs = await dockerLogs(containerId);
     throw new Error(
-      `tmux session did not start within 7.5s (container still running).${logs ? `\n\nLast container output:\n${logs}` : ""}`,
+      `tmux session did not start within 7.5s (could not confirm container state).${logs ? `\n\nLast container output:\n${logs}` : ""}`,
     );
   }
 

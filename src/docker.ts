@@ -28,6 +28,16 @@ export async function dockerRemove(containerId: string): Promise<void> {
   await execFileAsync("docker", ["rm", "-f", containerId]);
 }
 
+/**
+ * "missing" when the container truly doesn't exist; "error" for daemon
+ * outages, permission issues, etc. The distinction matters because callers
+ * use "missing" as authoritative ("no such container") and must not act on
+ * transient daemon errors.
+ */
+export function classifyInspectError(stderr: string): "missing" | "error" {
+  return /no such (container|object)/i.test(stderr) ? "missing" : "error";
+}
+
 export async function dockerInspectState(
   containerId: string,
 ): Promise<ContainerState> {
@@ -36,8 +46,11 @@ export async function dockerInspectState(
       "inspect", "-f", "{{.State.Running}}", containerId,
     ]);
     return stdout.trim() === "true" ? "running" : "stopped";
-  } catch {
-    return "missing";
+  } catch (e) {
+    const stderr = (e as { stderr?: string }).stderr ?? "";
+    if (classifyInspectError(stderr) === "missing") return "missing";
+    const msg = stderr.trim() || (e as Error).message;
+    throw new Error(`docker inspect failed: ${msg}`, { cause: e });
   }
 }
 
