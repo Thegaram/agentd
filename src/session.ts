@@ -1,6 +1,14 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, unlinkSync, writeFileSync } from "node:fs";
-import { basename } from "node:path";
+import { randomUUID } from "node:crypto";
+import {
+  existsSync,
+  mkdirSync,
+  rmdirSync,
+  symlinkSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { basename, dirname, join } from "node:path";
 
 import type { SessionState } from "./schema.js";
 import { createPaths, type Paths } from "./paths.js";
@@ -177,6 +185,52 @@ export function shortenMountPath(hostPath: string): string {
   return name || hostPath;  // basename("/") returns "", keep original
 }
 
+/** Bucket name agentd uses under the host's discoverable dir. */
+export const AGENTD_TRANSCRIPTS_PREFIX = "agentd-";
+
+export function transcriptsHostSymlink(
+  backend: AgentBackend,
+  key: string,
+): string | undefined {
+  if (!backend.transcripts) return undefined;
+  return join(
+    backend.transcripts.hostDiscoverableDir(),
+    `${AGENTD_TRANSCRIPTS_PREFIX}${key}`,
+  );
+}
+
+export function transcriptsMountArg(
+  backend: AgentBackend,
+  paths: Paths,
+  key: string | undefined,
+): string | undefined {
+  if (!backend.transcripts || !key) return undefined;
+  return `${paths.transcriptsHostDir(key)}:${backend.transcripts.containerDir}`;
+}
+
+/**
+ * Non-fatal so agentd still works on hosts without the agent installed —
+ * the bind mount itself preserves transcripts; the symlink is just for
+ * host-side discoverability.
+ */
+export function placeTranscriptsSymlink(target: string, link: string): void {
+  try {
+    symlinkSync(target, link);
+    return;
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== "ENOENT") {
+      console.warn(`Warning: failed to create transcripts symlink at ${link}: ${(e as Error).message}`);
+      return;
+    }
+  }
+  try {
+    mkdirSync(dirname(link), { recursive: true });
+    symlinkSync(target, link);
+  } catch (e) {
+    console.warn(`Warning: failed to create transcripts symlink at ${link}: ${(e as Error).message}`);
+  }
+}
+
 /**
  * Build a diagnostic error message for a container that exited before tmux
  * came up. Includes exit code, Docker's own error if any, and the tail of
@@ -215,6 +269,7 @@ export interface DryRunResult {
   dockerArgs: string[];
   script: string;
   theme?: string | undefined;
+  transcriptsKey?: string | undefined;
 }
 
 export class SessionManager {
@@ -233,10 +288,15 @@ export class SessionManager {
 
   /**
    * Build the docker create args and startup script for a session,
-   * without executing anything.
+   * without executing anything. Generates a transcriptsKey when the backend
+   * opts in so dry-run output matches what spawnInteractive would produce.
    */
   async buildSpawnCommand(opts: InteractiveOptions): Promise<DryRunResult> {
     const backend = opts.backend;
+    const transcriptsKey =
+      backend.transcripts && process.env["AGENTD_NO_TRANSCRIPTS"] !== "1"
+        ? randomUUID()
+        : undefined;
 
     if (!await dockerImageExists(backend.dockerImage)) {
       throw new Error(
@@ -262,6 +322,9 @@ export class SessionManager {
     for (const mount of opts.mounts) {
       dockerArgs.push("-v", mount);
     }
+
+    const transcriptsMount = transcriptsMountArg(backend, this.paths, transcriptsKey);
+    if (transcriptsMount) dockerArgs.push("-v", transcriptsMount);
 
     for (const port of opts.ports) {
       dockerArgs.push("-p", port);
@@ -320,13 +383,27 @@ export class SessionManager {
       backend.startCommand(opts.model),
     ].join("\n");
 
-    return { dockerArgs, script, theme };
+    return { dockerArgs, script, theme, transcriptsKey };
   }
 
   async spawnInteractive(opts: InteractiveOptions): Promise<string> {
-    const { dockerArgs, script, theme } = await this.buildSpawnCommand(opts);
+    const { dockerArgs, script, theme, transcriptsKey } = await this.buildSpawnCommand(opts);
 
-    const containerId = await dockerCreate(dockerArgs);
+    if (transcriptsKey) {
+      // Must exist before dockerCreate: Docker auto-creates missing bind
+      // sources as root, after which the agent UID can't write into them.
+      mkdirSync(this.paths.transcriptsHostDir(transcriptsKey), { recursive: true });
+    }
+
+    let containerId: string;
+    try {
+      containerId = await dockerCreate(dockerArgs);
+    } catch (e) {
+      if (transcriptsKey) {
+        try { rmdirSync(this.paths.transcriptsHostDir(transcriptsKey)); } catch { /* best effort */ }
+      }
+      throw e;
+    }
 
     await this.writeCmdFile(containerId, script);
     await dockerStart(containerId);
@@ -341,6 +418,7 @@ export class SessionManager {
       agent: opts.backend.name,
       theme,
       containerId,
+      transcriptsKey,
       startedAt: new Date().toISOString(),
       autoRemove: opts.rm ?? false,
       credential: hasCreds ? credPath : undefined,
@@ -350,6 +428,11 @@ export class SessionManager {
       ports: opts.ports,
       resolvedPorts: [],
     });
+
+    if (transcriptsKey) {
+      const link = transcriptsHostSymlink(opts.backend, transcriptsKey);
+      if (link) placeTranscriptsSymlink(this.paths.transcriptsHostDir(transcriptsKey), link);
+    }
 
     await this.waitForTmux(containerId);
     if (opts.ports.length > 0) {
@@ -374,6 +457,9 @@ export class SessionManager {
         // container may already be removed
       }
     }
+    // Bucket dir and host symlink are intentionally kept on cancel — host
+    // tooling (e.g. /insights) discovers transcripts via the symlink, so
+    // removing it would make the kept data unreachable.
     this.removeSession(label);
   }
 

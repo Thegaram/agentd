@@ -21,6 +21,18 @@ export interface AgentBackend {
   /** Extra environment variables to set inside the container. */
   readonly containerEnv?: Readonly<Record<string, string>>;
 
+  // ── Session transcripts (optional) ───────────────────────────────
+
+  /**
+   * Opt in to per-session transcript persistence. agentd bind-mounts a
+   * host bucket at `containerDir` and exposes the bucket to host tooling
+   * (e.g. /insights) by symlinking it under `hostDiscoverableDir`.
+   */
+  readonly transcripts?: {
+    containerDir: string;
+    hostDiscoverableDir(): string;
+  };
+
   // ── Credentials ──────────────────────────────────────────────────
 
   /** Env vars that shadow a credential file and must be unset when it's mounted. */

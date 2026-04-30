@@ -77,6 +77,7 @@ For backends that don't need credentials (like aider with local Ollama), set `re
 - Session status: `running` or `suspended` (stopped container)
 - Zod schemas are the source of truth for file formats
 - Never log or write secret values — log scope names only
+- The container's `agent` user is uid 1000; on hosts where the user UID differs, files written by the container (including persisted transcripts under `~/.agentd/transcripts/`) won't be readable by the host user without a chown.
 
 ## Session resume rules
 

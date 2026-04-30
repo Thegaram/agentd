@@ -39,6 +39,25 @@ describe("SessionStateSchema", () => {
     expect(state.agent).toBe("codex");
   });
 
+  it("round-trips an optional transcriptsKey", () => {
+    const state = SessionStateSchema.parse({
+      label: "my-project",
+      containerId: "abc123",
+      transcriptsKey: "8b4d2cf6-...",
+      startedAt: "2026-03-17T10:00:00Z",
+    });
+    expect(state.transcriptsKey).toBe("8b4d2cf6-...");
+  });
+
+  it("treats transcriptsKey as optional", () => {
+    const state = SessionStateSchema.parse({
+      label: "my-project",
+      containerId: "abc123",
+      startedAt: "2026-03-17T10:00:00Z",
+    });
+    expect(state.transcriptsKey).toBeUndefined();
+  });
+
   it("rejects invalid datetime", () => {
     expect(() =>
       SessionStateSchema.parse({
