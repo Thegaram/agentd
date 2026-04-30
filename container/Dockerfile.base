@@ -184,6 +184,7 @@ RUN printf '%s\n' \
     'set -as terminal-features ",tmux*:clipboard:RGB"' \
     'set -as terminal-features ",screen*:clipboard"' \
     'set -g allow-passthrough on' \
+    'set -s set-clipboard on' \
     'set -g copy-command "bash /agentd/copy-clipboard.sh"' \
     'set -g mouse on' \
     > /home/agent/.tmux.conf \
