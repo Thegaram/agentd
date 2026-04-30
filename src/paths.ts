@@ -7,6 +7,8 @@ export function createPaths(home: string) {
     stateFile: join(home, "state.json"),
     secretFile: (scope: string) =>
       join(home, "secrets", `${scope}.env`),
+    transcriptsHostDir: (key: string) =>
+      join(home, "transcripts", key),
   } as const;
 }
 

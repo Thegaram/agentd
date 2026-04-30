@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
+  lstatSync,
   mkdtempSync,
   mkdirSync,
+  readlinkSync,
   writeFileSync,
   rmSync,
 } from "node:fs";
@@ -11,9 +13,12 @@ import {
   SessionManager,
   forwardedTerminalEnv,
   parseDockerPortOutput,
+  placeTranscriptsSymlink,
   shortenMountPath,
   resolveContainerTerm,
+  transcriptsMountArg,
 } from "./session.js";
+import { createPaths } from "./paths.js";
 import { claude } from "./agents/claude.js";
 import { codex } from "./agents/codex.js";
 import { aider } from "./agents/aider.js";
@@ -182,6 +187,55 @@ describe("resolveContainerTerm", () => {
     expect(resolveContainerTerm({ TERM: "xterm-kitty" }))
       .toBe("xterm-256color");
   });
+});
+
+describe("transcriptsMountArg", () => {
+  const paths = createPaths("/home/me/.agentd");
+
+  it("returns the bind mount string for a backend with transcripts support", () => {
+    expect(transcriptsMountArg(claude, paths, "abc-123")).toBe(
+      "/home/me/.agentd/transcripts/abc-123:/home/agent/.claude/projects/-workspace",
+    );
+  });
+
+  it("returns undefined when the backend has no transcripts dir", () => {
+    expect(transcriptsMountArg(codex, paths, "abc-123")).toBeUndefined();
+    expect(transcriptsMountArg(aider, paths, "abc-123")).toBeUndefined();
+  });
+
+  it("returns undefined when no key is supplied", () => {
+    expect(transcriptsMountArg(claude, paths, undefined)).toBeUndefined();
+  });
+});
+
+describe("transcripts symlink helpers", () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), "agentd-symlink-test-"));
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it("creates a symlink in an existing parent dir", () => {
+    const target = join(root, "data");
+    mkdirSync(target);
+    const link = join(root, "agentd-foo");
+    placeTranscriptsSymlink(target, link);
+    expect(lstatSync(link).isSymbolicLink()).toBe(true);
+    expect(readlinkSync(link)).toBe(target);
+  });
+
+  it("creates the parent dir on demand when missing", () => {
+    const target = join(root, "data");
+    mkdirSync(target);
+    const link = join(root, "view", "nested", "agentd-foo");
+    placeTranscriptsSymlink(target, link);
+    expect(lstatSync(link).isSymbolicLink()).toBe(true);
+  });
+
 });
 
 describe("forwardedTerminalEnv", () => {

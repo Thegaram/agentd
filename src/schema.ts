@@ -6,6 +6,7 @@ export const SessionStateSchema = z.object({
   model: z.string().optional(),
   theme: z.string().optional(),
   containerId: z.string(),
+  transcriptsKey: z.string().optional(),
   startedAt: z.iso.datetime(),
   autoRemove: z.boolean().default(false),
   credential: z.string().optional(),

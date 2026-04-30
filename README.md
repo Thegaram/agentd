@@ -97,6 +97,10 @@ agentd shell --mount .:/workspace:ro  # read-only mount
 agentd shell --rm                     # throwaway session
 ```
 
+### Transcript persistence
+
+Claude sessions write conversation transcripts under `~/.agentd/transcripts/<uuid>/` on the host and are exposed to host tooling (e.g. `claude --resume`, the `/insights` skill) via a symlink under `~/.claude/projects/agentd-<uuid>/`. The bucket and symlink are kept on `agentd cancel` (including `--rm` exits) so longitudinal tooling can still read them; remove them by hand if you don't want them. Set `AGENTD_NO_TRANSCRIPTS=1` to disable persistence for new sessions.
+
 ### Clipboard In Host tmux
 
 `agentd` runs an inner `tmux` inside the container. To copy text from that inner shell all the way to your desktop clipboard when you launched `agentd` from a host `tmux`, make sure the host `tmux` forwards clipboard escape sequences:
