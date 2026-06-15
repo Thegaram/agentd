@@ -584,6 +584,16 @@ export class SessionManager {
 
       await dockerStart(session.containerId);
       await this.waitForTmux(session.containerId);
+
+      // Docker reassigns ephemeral host ports on restart, so the value
+      // baked into /tmp/agentd-ports (and resolvedPorts) at spawn time can
+      // now be wrong. Re-query and refresh the statusbar on resume.
+      if (session.ports.length > 0) {
+        const resolvedPorts = await this.writePortMappings(session.containerId);
+        if (resolvedPorts) {
+          this.saveSession({ ...session, resolvedPorts });
+        }
+      }
     }
 
     // Name the host terminal tab after the session (e.g. Ghostty tab title).
