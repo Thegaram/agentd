@@ -185,6 +185,27 @@ export function shortenMountPath(hostPath: string): string {
   return name || hostPath;  // basename("/") returns "", keep original
 }
 
+/**
+ * Title shown by the host terminal (e.g. the Ghostty tab name) while attached.
+ */
+export function terminalTitle(label: string): string {
+  return `agentd: ${label}`;
+}
+
+/**
+ * Escape sequence to set the host terminal title, pushing the previous title
+ * onto the terminal's title stack first so attach() can restore it on detach.
+ * Uses OSC 2 (set window title) and XTWINOPS 22;2t (save title), both
+ * supported by Ghostty and xterm-compatible terminals; unsupported terminals
+ * ignore them harmlessly.
+ */
+export function setTitleSequence(title: string): string {
+  return `\x1b[22;2t\x1b]2;${title}\x07`;
+}
+
+/** Restore the title saved by setTitleSequence (XTWINOPS 23;2t). */
+export const RESTORE_TITLE_SEQUENCE = "\x1b[23;2t";
+
 /** Bucket name agentd uses under the host's discoverable dir. */
 export const AGENTD_TRANSCRIPTS_PREFIX = "agentd-";
 
@@ -565,13 +586,18 @@ export class SessionManager {
       await this.waitForTmux(session.containerId);
     }
 
+    // Name the host terminal tab after the session (e.g. Ghostty tab title).
+    // tmux runs with set-titles off, so it won't clobber this for the session.
+    process.stdout.write(setTitleSequence(terminalTitle(label)));
+
     try {
       warnIfHostTmuxMayBlockClipboard();
       dockerAttachSync(session.containerId);
     } finally {
-      // Disable mouse modes, exit alternate screen, restore terminal
+      // Disable mouse modes, exit alternate screen, restore terminal title
       process.stdout.write(
-        "\x1b[?1049l"    // exit alternate screen buffer
+        RESTORE_TITLE_SEQUENCE
+        + "\x1b[?1049l"  // exit alternate screen buffer
         + "\x1b[?1000l"  // disable mouse click tracking
         + "\x1b[?1002l"  // disable mouse drag tracking
         + "\x1b[?1003l"  // disable all mouse motion tracking

@@ -17,6 +17,9 @@ import {
   shortenMountPath,
   resolveContainerTerm,
   transcriptsMountArg,
+  terminalTitle,
+  setTitleSequence,
+  RESTORE_TITLE_SEQUENCE,
 } from "./session.js";
 import { createPaths } from "./paths.js";
 import { claude } from "./agents/claude.js";
@@ -155,6 +158,23 @@ describe("parseDockerPortOutput", () => {
   it("skips malformed lines", () => {
     const input = "garbage\n3000/tcp -> 0.0.0.0:49152\nalso garbage";
     expect(parseDockerPortOutput(input)).toBe("3000\u219249152");
+  });
+});
+
+describe("terminalTitle", () => {
+  it("prefixes the label with agentd:", () => {
+    expect(terminalTitle("my-project")).toBe("agentd: my-project");
+  });
+});
+
+describe("setTitleSequence", () => {
+  it("saves the current title then sets the new one via OSC 2", () => {
+    expect(setTitleSequence("agentd: my-project"))
+      .toBe("\x1b[22;2t\x1b]2;agentd: my-project\x07");
+  });
+
+  it("is paired with a restore sequence that pops the saved title", () => {
+    expect(RESTORE_TITLE_SEQUENCE).toBe("\x1b[23;2t");
   });
 });
 
