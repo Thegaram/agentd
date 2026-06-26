@@ -19,9 +19,27 @@ function resolveAgent(options: Record<string, unknown>): { name: string; explici
 
 const mgr = new SessionManager({ agentdHome: paths.home });
 
+/**
+ * ASCII banner shown above `agentd --help` (root help only, no subcommand).
+ * Scoped to human consumers so machine/agent (MCP) output stays clean, and
+ * colorized only on a TTY so piped help doesn't carry raw escape codes.
+ */
+const BANNER = [
+  "                         _      _",
+  "   __ _  __ _  ___ _ __ | |_ __| |",
+  "  / _` |/ _` |/ _ \\ '_ \\| __/ _` |",
+  " | (_| | (_| |  __/ | | | || (_| |",
+  "  \\__,_|\\__, |\\___|_| |_|\\__\\__,_|",
+  "        |___/",
+].join("\n");
+
 const cli = Cli.create("agentd", {
   version: "0.1.0",
   description: "Sandboxed AI coding agent sessions",
+  banner: {
+    render: () => (process.stdout.isTTY ? `\x1b[36m${BANNER}\x1b[0m` : BANNER),
+    mode: "human",
+  },
 });
 
 type SessionRow = {
@@ -241,7 +259,7 @@ cli.command("shell", {
     mount: z
       .array(z.string())
       .optional()
-      .describe("Extra mount paths (host:container)"),
+      .describe("Mount paths, replaces default cwd mount (host:container)"),
     "skip-mount": z
       .boolean()
       .optional()

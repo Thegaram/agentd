@@ -20,8 +20,8 @@
     "prepare": "git config core.hooksPath .githooks"
   },
   "dependencies": {
-    "incur": "^0.3.4",
-    "zod": "^4.3.6"
+    "incur": "^0.4.10",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",

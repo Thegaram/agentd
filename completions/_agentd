@@ -52,7 +52,7 @@ _agentd() {
         '--claude[Use Claude Code backend (default)]' \
         '--codex[Use OpenAI Codex backend]' \
         '--aider[Use aider backend (local Ollama)]' \
-        '*--mount[Extra mount paths (host\:container)]:mount path:_files' \
+        '*--mount[Mount paths, replaces default cwd mount (host\:container)]:mount path:_files' \
         '*--secret[Secret scopes to pass (defaults to agent-specific scope)]:scope:' \
         '--model[Model override (agent-specific, e.g. opus, gpt-5.4)]:model:' \
         '--rm[Remove container when session ends]' \
