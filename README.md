@@ -77,8 +77,6 @@ agentd serve [--port N]         # open read-only web dashboard
 
 The current directory is mounted read-write at `/workspace` by default. Port 3000 is published to a random host port by default.
 
-![agentd](assets/dashboard.png)
-
 ### Options
 
 ```
@@ -86,12 +84,12 @@ The current directory is mounted read-write at `/workspace` by default. Port 300
 --codex                  use OpenAI Codex backend
 --aider                  use aider backend (local Ollama)
 --model name             model override (agent-specific, e.g. opus, gpt-5.4)
---mount host:container   mount paths (replaces default cwd mount)
+--rm                     remove container when session ends
+--mount host:container   mount paths (replaces default cwd mount; repeatable)
 --skip-mount             don't mount current directory
---port [host:]container  port mappings (replaces default 3000)
+--secret scope           secret scopes to pass (defaults to agent-specific scope)
+--port [host:]container  port mappings (replaces default 3000; repeatable)
 --skip-ports             don't publish any ports
---secret scope           secret env files to pass
---rm                     auto-remove container on exit
 --dry-run                print the Docker command without executing
 ```
 
@@ -126,6 +124,28 @@ agentd shell my-app
 # Dev in Claude, review the same dir read-only in Codex
 agentd shell my-app
 agentd shell my-app-review --codex --mount .:/workspace:ro
+```
+
+### Dashboard
+
+Run `agentd serve` to show a read-only web dashboard.
+
+![agentd](assets/dashboard.png)
+
+### Shell completions
+
+Install for zsh (needs `jq` for session labels):
+
+```bash
+mkdir -p ~/.zfunc
+cp completions/_agentd ~/.zfunc/_agentd  # re-copy after upgrades
+```
+
+Then add to `~/.zshrc` (before `compinit` runs), and reload with `exec zsh`:
+
+```zsh
+fpath=(~/.zfunc $fpath)
+autoload -Uz compinit && compinit
 ```
 
 ### Transcript persistence
