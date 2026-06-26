@@ -153,3 +153,19 @@ Containers are hardened by default:
 - **Non-root**: sessions run as `agent` user (UID 1000)
 
 **Be aware of what you mount.** The agent has full read access to anything mounted into `/workspace`, including git history, config files, and embedded secrets. Mounted content may be sent to Anthropic or OpenAI servers as part of the agent's conversation context. If the agent is compromised or tricked via prompt injection, mounted data could also be exfiltrated over the network. Avoid mounting directories containing credentials or sensitive data you don't want exposed.
+
+### Shell completions
+
+Install for zsh (needs `jq` for session labels):
+
+```bash
+mkdir -p ~/.zfunc
+cp completions/_agentd ~/.zfunc/_agentd  # re-copy after upgrades
+```
+
+Then add to `~/.zshrc` (before `compinit` runs), and reload with `exec zsh`:
+
+```zsh
+fpath=(~/.zfunc $fpath)
+autoload -Uz compinit && compinit
+```

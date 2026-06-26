@@ -1,20 +1,26 @@
 #compdef agentd
 
+# Session-label completion is why agentd ships this static file instead of the
+# framework's built-in `agentd completions zsh`: incur's dynamic completion has
+# no runtime arg-value hook, so it can't read labels from state.json. Everything
+# else here mirrors the CLI commands/flags — keep it in sync when those change.
+
 _agentd_sessions() {
-  local agentd_home="${AGENTD_HOME:-$HOME/.agentd}"
-  local state_file="$agentd_home/state.json"
+  local state_file="${AGENTD_HOME:-$HOME/.agentd}/state.json"
   [[ -f "$state_file" ]] || return
-  local -a session_ids
-  session_ids=($(jq -r '.sessions[].label' "$state_file" 2>/dev/null))
-  compadd -a session_ids
+  local -a labels
+  labels=("${(@f)$(jq -r '.sessions[].label' "$state_file" 2>/dev/null)}")
+  compadd -a labels
 }
 
 _agentd() {
   local -a commands=(
     'ls:List all active sessions'
     'cancel:Cancel a session and remove its container'
-    'shell:Sandboxed coding agent session (mounts current directory by default)'
+    'shell:Sandboxed coding agent session (label defaults to current folder name)'
     'code:Open a running session in VS Code (Dev Containers)'
+    'serve:Read-only web dashboard for active sessions (localhost only)'
+    'completions:Print the shell completion script'
   )
 
   if (( CURRENT == 2 )); then
@@ -22,31 +28,38 @@ _agentd() {
     return
   fi
 
-  local cmd="${words[2]}"
-  case "$cmd" in
+  case "${words[2]}" in
     cancel)
-      _agentd_sessions
+      (( CURRENT == 3 )) && _agentd_sessions
       ;;
     code)
-      if (( CURRENT == 3 )); then
-        _agentd_sessions
-      fi
+      (( CURRENT == 3 )) && _agentd_sessions
+      ;;
+    ls)
+      _arguments '--watch[Live-updating dashboard (refreshes every 2s)]'
+      ;;
+    serve)
+      _arguments \
+        '--port[Port to bind on 127.0.0.1 (default 8787)]:port:' \
+        "--skip-open[Don't open the dashboard in your browser (opens by default)]"
+      ;;
+    completions)
+      (( CURRENT == 3 )) && compadd bash fish nushell zsh
       ;;
     shell)
-      if (( CURRENT >= 3 )); then
-        _arguments \
-          '--claude[Use Claude Code backend (default)]' \
-          '--codex[Use OpenAI Codex backend]' \
-          '--aider[Use aider backend (local Ollama)]' \
-          '*--mount[Extra mount host\:container path]:mount path:_files' \
-          '*--secret[Secret scope]:scope:' \
-          '--model[Model override (agent-specific)]:model:' \
-          '--rm[Remove container when session ends]' \
-          "--skip-mount[Don't mount current directory]" \
-          '*--port[Port mappings (replaces default 3000)]:port:' \
-          "--skip-ports[Don't publish any ports]" \
-          '--dry-run[Print the Docker command without executing]'
-      fi
+      _arguments \
+        '1:session label:_agentd_sessions' \
+        '--claude[Use Claude Code backend (default)]' \
+        '--codex[Use OpenAI Codex backend]' \
+        '--aider[Use aider backend (local Ollama)]' \
+        '*--mount[Extra mount paths (host\:container)]:mount path:_files' \
+        '*--secret[Secret scopes to pass (defaults to agent-specific scope)]:scope:' \
+        '--model[Model override (agent-specific, e.g. opus, gpt-5.4)]:model:' \
+        '--rm[Remove container when session ends]' \
+        "--skip-mount[Don't mount current directory]" \
+        '*--port[Port mappings \[host\:\]container (replaces default 3000)]:port:' \
+        "--skip-ports[Don't publish any ports]" \
+        '--dry-run[Print the Docker command without executing]'
       ;;
   esac
 }
