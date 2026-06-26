@@ -162,12 +162,15 @@ function warnIfHostTmuxMayBlockClipboard(): void {
  * Input:  "3000/tcp -> 0.0.0.0:49152\n3000/tcp -> [::]:49152"
  * Output: "3000→49152"
  */
+/** Separator between container and host port in a resolvedPorts entry ("3000\u219249152"). */
+export const PORT_MAPPING_ARROW = "\u2192";
+
 export function parseDockerPortOutput(raw: string): string {
   const seen = new Set<string>();
   return raw.split("\n").map((line) => {
     const match = line.match(/^(\d+)\/\w+\s+->\s+.*:(\d+)$/);
     if (!match) return null;
-    const entry = `${match[1]}\u2192${match[2]}`;
+    const entry = `${match[1]}${PORT_MAPPING_ARROW}${match[2]}`;
     if (seen.has(entry)) return null;
     seen.add(entry);
     return entry;
@@ -632,5 +635,10 @@ export class SessionManager {
 
   listSessions(): SessionState[] {
     return this.store.list();
+  }
+
+  /** Host directory holding a session's persisted transcripts (for the given key). */
+  transcriptsHostDir(key: string): string {
+    return this.paths.transcriptsHostDir(key);
   }
 }

@@ -102,6 +102,65 @@ export async function dockerPort(containerId: string): Promise<string> {
   }
 }
 
+/** Parse `docker ps -a --format '{{.ID}}\t{{.State}}'` into fullId → state. */
+export function parseContainerStates(stdout: string): Map<string, ContainerState> {
+  const map = new Map<string, ContainerState>();
+  for (const line of stdout.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const [id, state] = trimmed.split("\t");
+    if (!id) continue;
+    map.set(id, state === "running" ? "running" : "stopped");
+  }
+  return map;
+}
+
+/**
+ * One batched call returning every container's state keyed by full ID.
+ * Throws on daemon failure (callers distinguish "daemon down" from "container
+ * absent" — an absent ID simply isn't in the returned map).
+ */
+export async function dockerListStates(): Promise<Map<string, ContainerState>> {
+  const { stdout } = await execFileAsync("docker", [
+    "ps", "-a", "--no-trunc", "--format", "{{.ID}}\t{{.State}}",
+  ]);
+  return parseContainerStates(stdout);
+}
+
+export interface ContainerStats {
+  cpu: string;
+  mem: string;
+}
+
+/** Parse `docker stats --no-stream` output into shortId → {cpu, mem(used)}. */
+export function parseContainerStats(stdout: string): Map<string, ContainerStats> {
+  const map = new Map<string, ContainerStats>();
+  for (const line of stdout.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const [id, cpu, mem] = trimmed.split("\t");
+    if (!id) continue;
+    const memUsed = mem?.split("/")[0]?.trim() ?? "";
+    map.set(id, { cpu: (cpu ?? "").trim(), mem: memUsed });
+  }
+  return map;
+}
+
+/**
+ * One batched call returning live CPU/mem for running containers, keyed by
+ * short ID. Non-fatal: returns an empty map if stats are unavailable.
+ */
+export async function dockerStats(): Promise<Map<string, ContainerStats>> {
+  try {
+    const { stdout } = await execFileAsync("docker", [
+      "stats", "--no-stream", "--format", "{{.ID}}\t{{.CPUPerc}}\t{{.MemUsage}}",
+    ]);
+    return parseContainerStats(stdout);
+  } catch {
+    return new Map();
+  }
+}
+
 export function dockerAttachSync(containerId: string): void {
   execFileSync(
     "docker",

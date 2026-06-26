@@ -66,9 +66,12 @@ agentd shell [label] [options]  # start or resume a sandboxed session (mounts cw
 agentd ls --format md           # list active sessions
 agentd cancel <label>           # remove container and session
 agentd code [label]             # open session in VS Code via Dev Containers
+agentd serve [--port N]         # open read-only web dashboard
 ```
 
 The current directory is mounted read-write at `/workspace` by default. Port 3000 is published to a random host port by default.
+
+![agentd](assets/dashboard.png)
 
 ### Options
 
