@@ -132,6 +132,22 @@ Run `agentd serve` to show a read-only web dashboard.
 
 ![agentd](assets/dashboard.png)
 
+### Shell completions
+
+Install for zsh (needs `jq` for session labels):
+
+```bash
+mkdir -p ~/.zfunc
+cp completions/_agentd ~/.zfunc/_agentd  # re-copy after upgrades
+```
+
+Then add to `~/.zshrc` (before `compinit` runs), and reload with `exec zsh`:
+
+```zsh
+fpath=(~/.zfunc $fpath)
+autoload -Uz compinit && compinit
+```
+
 ### Transcript persistence
 
 Claude sessions write conversation transcripts under `~/.agentd/transcripts/<uuid>/` on the host and are exposed to host tooling (e.g. `claude --resume`, the `/insights` skill) via a symlink under `~/.claude/projects/agentd-<uuid>/`. The bucket and symlink are kept on `agentd cancel` (including `--rm` exits) so longitudinal tooling can still read them; remove them by hand if you don't want them. Set `AGENTD_NO_TRANSCRIPTS=1` to disable persistence for new sessions.
@@ -157,19 +173,3 @@ Containers are hardened by default:
 - **Non-root**: sessions run as `agent` user (UID 1000)
 
 **Be aware of what you mount.** The agent has full read access to anything mounted into `/workspace`, including git history, config files, and embedded secrets. Mounted content may be sent to Anthropic or OpenAI servers as part of the agent's conversation context. If the agent is compromised or tricked via prompt injection, mounted data could also be exfiltrated over the network. Avoid mounting directories containing credentials or sensitive data you don't want exposed.
-
-### Shell completions
-
-Install for zsh (needs `jq` for session labels):
-
-```bash
-mkdir -p ~/.zfunc
-cp completions/_agentd ~/.zfunc/_agentd  # re-copy after upgrades
-```
-
-Then add to `~/.zshrc` (before `compinit` runs), and reload with `exec zsh`:
-
-```zsh
-fpath=(~/.zfunc $fpath)
-autoload -Uz compinit && compinit
-```
