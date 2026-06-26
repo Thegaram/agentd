@@ -19,6 +19,8 @@ src/
   docker.ts        ← thin Docker CLI wrappers
   schema.ts        ← zod schemas for session state
   paths.ts         ← ~/.agentd/ path conventions
+  format.ts        ← shared formatting helpers (formatAge)
+  dashboard.ts     ← read-only web dashboard: HTTP server, view-model, inline page
   agents/
     types.ts       ← AgentBackend interface
     claude.ts      ← Claude Code backend
@@ -69,6 +71,16 @@ completions/
 The `--myagent` CLI flag is auto-derived from `AGENT_NAMES` in the registry.
 
 For backends that don't need credentials (like aider with local Ollama), set `requiresAuth: false` — this skips secret file lookup and suppresses the no-auth warning. See `src/agents/aider.ts` for the pattern.
+
+## Dashboard (`agentd serve`)
+
+A **read-only** web dashboard for all sessions, in `src/dashboard.ts`. It never starts, stops, or mutates sessions — only `GET` routes, no state changes.
+
+- **Security**: binds `127.0.0.1` only; every request is rejected unless its `Host` header is loopback (`isLoopbackHost`, defeats DNS-rebinding); no CORS headers (browsers block cross-origin reads); the inline page renders all session-derived strings via `textContent`/DOM (never `innerHTML` for data) so labels/paths can't inject markup. **No auth** — assumes a single-user host.
+- **Data flow**: `buildStaticViews` is the instant, state.json-only view (served at `?quick=1` for first paint); `collectSessionViews` is the enriched view — status/CPU/mem from two batched Docker calls (`dockerListStates` + `dockerStats`, not per-session inspect), plus per-session transcript reads. Keep pure helpers (`parsePorts`, the transcript parsers, pricing/cost) extracted and unit-tested in `dashboard.test.ts`.
+- **Transcript-derived fields are Claude-only** (idle status, last activity, context %, cost, peek) — they parse the Claude Code JSONL; pricing and context-window size are heuristics keyed off the model name. Codex/aider have no transcripts, so those fields are blank.
+- **Idle detection**: `isAwaitingUser` reads the last conversational turn; a staleness fallback (`IDLE_STALE_MS`) marks a running-but-quiet container idle (covers `/clear` and similar, where the transcript shape isn't conclusive).
+- **The page** (HTML/CSS/client-JS) is one inline template-literal string, `PAGE`. The client JS deliberately avoids backticks and `${...}` so the whole literal stays a plain string — keep it that way when editing.
 
 ## Conventions
 

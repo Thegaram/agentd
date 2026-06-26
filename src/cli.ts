@@ -1,7 +1,10 @@
+import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 import { Cli, z } from "incur";
 import { SessionManager } from "./session.js";
 import type { ContainerState } from "./docker.js";
+import { startDashboard } from "./dashboard.js";
+import { formatAge } from "./format.js";
 import { paths } from "./paths.js";
 import { getBackend, AGENT_NAMES, DEFAULT_AGENT } from "./agents/index.js";
 
@@ -455,6 +458,60 @@ cli.command("code", {
   },
 });
 
+cli.command("serve", {
+  description: "Read-only web dashboard for active sessions (localhost only)",
+  options: z.object({
+    port: z
+      .string()
+      .optional()
+      .describe("Port to bind on 127.0.0.1 (default 8787)"),
+    "skip-open": z
+      .boolean()
+      .optional()
+      .describe("Don't open the dashboard in your browser (opens by default)"),
+  }),
+  output: z.object({
+    url: z.string(),
+  }),
+  examples: [
+    { description: "Start the dashboard (opens in your browser)" },
+    { description: "Start without launching a browser", options: { "skip-open": true } },
+  ],
+  async run(c) {
+    const port = c.options.port != null ? Number(c.options.port) : 8787;
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      return c.error({
+        code: "INVALID_PORT",
+        message: `Invalid --port: ${c.options.port}`,
+        retryable: false,
+      });
+    }
+
+    let handle;
+    try {
+      handle = await startDashboard(mgr, { port });
+    } catch (e) {
+      return c.error({
+        code: "LISTEN_FAILED",
+        message: `Could not start dashboard on port ${port}: ${(e as Error).message}`,
+        retryable: false,
+      });
+    }
+
+    process.stdout.write(`agentd dashboard → ${handle.url}  (read-only, Ctrl-C to stop)\n`);
+    if (c.options["skip-open"] !== true) openBrowser(handle.url);
+
+    await new Promise<void>((resolveWait) => {
+      process.once("SIGINT", () => {
+        process.stdout.write("\n");
+        resolveWait();
+      });
+    });
+    await handle.close();
+    return c.ok({ url: handle.url });
+  },
+});
+
 cli.serve();
 
 export default cli;
@@ -527,14 +584,17 @@ function arraysEqual(a: string[], b: string[]): boolean {
   return JSON.stringify(a.slice().sort()) === JSON.stringify(b.slice().sort());
 }
 
-function formatAge(isoDate: string): string {
-  const ms = Date.now() - new Date(isoDate).getTime();
-  const seconds = Math.floor(ms / 1000);
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h`;
-  const days = Math.floor(hours / 24);
-  return `${days}d`;
+/** Open a URL in the host's default browser (best effort, non-blocking). */
+function openBrowser(url: string): void {
+  const cmd = process.platform === "darwin" ? "open"
+    : process.platform === "win32" ? "cmd"
+    : "xdg-open";
+  const args = process.platform === "win32" ? ["/c", "start", "", url] : [url];
+  try {
+    const child = spawn(cmd, args, { stdio: "ignore", detached: true });
+    // ENOENT (e.g. no xdg-open on a headless host) surfaces as an async
+    // 'error' event; swallow it so serving keeps working without a browser.
+    child.on("error", () => { /* no browser opener available */ });
+    child.unref();
+  } catch { /* best effort */ }
 }
