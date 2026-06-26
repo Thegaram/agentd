@@ -14,6 +14,12 @@ Requires Docker and Node.js 22+.
 make install    # npm install + build + docker build + npm link
 ```
 
+Full image rebuild for upgrades (e.g. pull new Claude Code version):
+
+```
+make build DOCKER_BUILD_FLAGS=--no-cache
+```
+
 ### Authentication
 
 ```bash
@@ -100,6 +106,28 @@ agentd shell --mount .:/workspace:ro  # read-only mount
 agentd shell --rm                     # throwaway session
 ```
 
+**Common use cases**
+
+```bash
+# Open a shell, then open the same session in vscode devcontainer
+agentd shell my-app
+agentd code my-app
+
+# Open a shell, ask the agent to build + run the app on port 3000
+agentd shell my-app --port 3000
+#   then tell the agent: "build and run the project on port 3000"
+#   then open the mapped port on the host
+
+# Open a shell, kick off work, detach to run in the background
+agentd shell my-app
+#   detach with `Ctrl-b d` (or `Ctrl-b d, Ctrl-b d` if you're in tmux)
+#   the container keeps running, re-attach with: agentd shell my-app
+
+# Dev in Claude, review the same dir read-only in Codex
+agentd shell my-app
+agentd shell my-app-review --codex --mount .:/workspace:ro
+```
+
 ### Transcript persistence
 
 Claude sessions write conversation transcripts under `~/.agentd/transcripts/<uuid>/` on the host and are exposed to host tooling (e.g. `claude --resume`, the `/insights` skill) via a symlink under `~/.claude/projects/agentd-<uuid>/`. The bucket and symlink are kept on `agentd cancel` (including `--rm` exits) so longitudinal tooling can still read them; remove them by hand if you don't want them. Set `AGENTD_NO_TRANSCRIPTS=1` to disable persistence for new sessions.
@@ -114,6 +142,8 @@ set -g allow-passthrough on
 ```
 
 ## Security
+
+**Good enough for everyday yolo mode.** The container is *not* an airtight boundary: within the session the agent can still modify mounted files, read/use secrets and env vars you pass in, call external APIs, and use the network. Treat it as a strong guardrail, not a vault.
 
 Containers are hardened by default:
 

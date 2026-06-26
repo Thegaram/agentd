@@ -32,6 +32,13 @@ type SessionRow = {
   age: string;
 };
 
+/**
+ * Printed after the user detaches/exits a session. Tearing the container down
+ * and persisting state.json takes a few seconds; this warns the user not to
+ * Ctrl-C in the meantime (which could interrupt the state.json update).
+ */
+const SHUTDOWN_NOTICE = "\nShutting down, please wait a few seconds (don't press Ctrl-C)...\n";
+
 const STATUS_DISPLAY: Record<string, string> = {
   running:    "\x1b[32m●\x1b[0m running",    // green
   suspended:  "\x1b[34m●\x1b[0m suspended",  // blue
@@ -359,6 +366,7 @@ cli.command("shell", {
       // attach() throws if the container is missing or the daemon is unreachable.
       try {
         await mgr.attach(name);
+        process.stderr.write(SHUTDOWN_NOTICE);
       } finally {
         if (existing.autoRemove) {
           await mgr.cancel(name);
@@ -387,6 +395,7 @@ cli.command("shell", {
     const containerId = await mgr.spawnInteractive(spawnOpts);
     try {
       await mgr.attach(name);
+      process.stderr.write(SHUTDOWN_NOTICE);
     } finally {
       if (rm) {
         await mgr.cancel(name);

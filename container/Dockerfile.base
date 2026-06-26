@@ -22,6 +22,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # Common dev libraries
     libssl-dev \
     libffi-dev \
+    # libclang (Clang C API — needed by Rust bindgen, ctypes, etc.)
+    libclang-dev \
     zlib1g-dev \
     libbz2-dev \
     libreadline-dev \
@@ -38,6 +40,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pip \
     python3-venv \
     python-is-python3 \
+    # Ruby (Jekyll and native-extension gems; build-essential + zlib1g-dev above
+    # cover the rest of Jekyll's documented apt deps)
+    ruby-full \
     # Search tools
     ripgrep \
     fd-find \
@@ -137,6 +142,19 @@ ENV GOPATH="/home/agent/go"
 ENV PATH="/home/agent/go/bin:${PATH}"
 RUN go install golang.org/x/tools/gopls@latest
 
+# Ruby gems install into the agent's home (GEM_HOME) so the agent can run
+# `gem install ...` / `bundle install` later without root. Jekyll + Bundler
+# are preinstalled here as the agent user for the same reason.
+ENV GEM_HOME="/home/agent/.gems"
+ENV PATH="/home/agent/.gems/bin:${PATH}"
+RUN gem install --no-document jekyll bundler
+
+# Point the agent's npm global prefix at its home so `npm install -g ...` works
+# without root. Set via the agent's ~/.npmrc (not a global ENV) so the root-run
+# system installs below — and in the per-agent images — still target /usr/local.
+# Purely additive: preinstalled system globals stay on /usr/local/bin.
+RUN npm config set prefix /home/agent/.npm-global
+
 USER root
 
 # Install uv (Python package manager)
@@ -190,7 +208,7 @@ RUN printf '%s\n' \
     > /home/agent/.tmux.conf \
   && chown agent:agent /home/agent/.tmux.conf
 
-ENV PATH="/home/agent/.local/bin:/home/agent/.foundry/bin:/home/agent/.cargo/bin:/usr/local/go/bin:${PATH}"
+ENV PATH="/home/agent/.npm-global/bin:/home/agent/.gems/bin:/home/agent/.local/bin:/home/agent/.foundry/bin:/home/agent/.cargo/bin:/usr/local/go/bin:${PATH}"
 ENV WORKSPACE_DIR=/workspace
 ENV TERM=xterm-256color
 ENV COLORTERM=truecolor
