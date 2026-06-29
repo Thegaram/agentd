@@ -48,6 +48,7 @@ completions/
 ~/.agentd/
   state.json       ← active sessions
   secrets/         ← credential files (claude-oauth.json, codex-auth.json, *.env)
+  persona/         ← optional global instruction files (claude.md, codex.md, default.md)
 ```
 
 ## Key decisions
@@ -71,6 +72,14 @@ completions/
 The `--myagent` CLI flag is auto-derived from `AGENT_NAMES` in the registry.
 
 For backends that don't need credentials (like aider with local Ollama), set `requiresAuth: false` — this skips secret file lookup and suppresses the no-auth warning. See `src/agents/aider.ts` for the pattern.
+
+## Persona / global instructions
+
+An optional "persona" file is bind-mounted read-only into the agent's global-instructions path so it applies to every new session: Claude's `~/.claude/CLAUDE.md`, Codex's `~/.codex/AGENTS.md`. A backend opts in via `personaContainerPath` (aider has none). It never touches `/workspace`, and merges with — doesn't replace — any project-level CLAUDE.md/AGENTS.md.
+
+- **agentd ships no defaults.** Nothing is mounted unless the user supplies a file. Resolution order is the pure `resolvePersonaFile` (`src/persona.ts`, unit-tested in `persona.test.ts`): `--no-persona` → `--persona <path>` → `~/.agentd/persona/<agent>.md` → `~/.agentd/persona/default.md` → none.
+- **Generic override = file, session override = flag.** Drop a file in `~/.agentd/persona/` to affect all new sessions with no flag; `--persona <path>` overrides it for one session; `--no-persona` suppresses it for one session.
+- The resolved host path is stored on the session (`persona` in `schema.ts`) for opt-in resume conflict detection. The mount is part of the container config, so resume needs no re-mount.
 
 ## Dashboard (`agentd serve`)
 
@@ -98,7 +107,7 @@ A **read-only** web dashboard for all sessions, in `src/dashboard.ts`. It never 
 - No flags → always resumes (no conflict possible)
 - `--model opus` → conflicts only if stored model differs
 - `--codex` → conflicts only if stored agent differs
-- `--port`, `--rm`, `--secret`, `--mount`, `--skip-mount`, `--skip-ports` → same pattern
+- `--port`, `--rm`, `--secret`, `--mount`, `--skip-mount`, `--skip-ports`, `--persona`, `--no-persona` → same pattern
 
 This means `agentd shell <name>` is always a safe way to resume, regardless of how the session was originally created.
 

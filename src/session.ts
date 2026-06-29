@@ -12,6 +12,7 @@ import { basename, dirname, join } from "node:path";
 
 import type { SessionState } from "./schema.js";
 import { createPaths, type Paths } from "./paths.js";
+import { resolvePersonaFile } from "./persona.js";
 import { SessionStore } from "./store.js";
 import { getBackend, credentialPreamble, type AgentBackend } from "./agents/index.js";
 import {
@@ -287,6 +288,8 @@ export interface InteractiveOptions {
   ports: string[];
   model?: string | undefined;
   rm?: boolean | undefined;
+  persona?: string | undefined;
+  noPersona?: boolean | undefined;
 }
 
 export interface DryRunResult {
@@ -294,6 +297,7 @@ export interface DryRunResult {
   script: string;
   theme?: string | undefined;
   transcriptsKey?: string | undefined;
+  personaPath?: string | undefined;
 }
 
 export class SessionManager {
@@ -364,6 +368,19 @@ export class SessionManager {
       dockerArgs.push("-v", `${backend.credentialHostPath(this.paths)}:${backend.credentialContainerPath}:ro`);
     }
 
+    // Global persona/instructions file (Claude global CLAUDE.md, Codex global
+    // AGENTS.md). Mounted read-only like credentials; nothing is mounted unless
+    // the user supplied a persona via --persona or ~/.agentd/persona/.
+    const personaPath = backend.personaContainerPath
+      ? resolvePersonaFile(
+          { agent: backend.name, explicitPath: opts.persona, disabled: opts.noPersona },
+          this.paths,
+        )
+      : undefined;
+    if (personaPath && backend.personaContainerPath) {
+      dockerArgs.push("-v", `${personaPath}:${backend.personaContainerPath}:ro`);
+    }
+
     const mountInfo = opts.mounts
       .filter((m) => {
         const host = m.split(":")[0];
@@ -407,11 +424,11 @@ export class SessionManager {
       backend.startCommand(opts.model),
     ].join("\n");
 
-    return { dockerArgs, script, theme, transcriptsKey };
+    return { dockerArgs, script, theme, transcriptsKey, personaPath };
   }
 
   async spawnInteractive(opts: InteractiveOptions): Promise<string> {
-    const { dockerArgs, script, theme, transcriptsKey } = await this.buildSpawnCommand(opts);
+    const { dockerArgs, script, theme, transcriptsKey, personaPath } = await this.buildSpawnCommand(opts);
 
     if (transcriptsKey) {
       // Must exist before dockerCreate: Docker auto-creates missing bind
@@ -446,6 +463,7 @@ export class SessionManager {
       startedAt: new Date().toISOString(),
       autoRemove: opts.rm ?? false,
       credential: hasCreds ? credPath : undefined,
+      persona: personaPath,
       secrets: opts.secrets,
       model: opts.model ?? opts.backend.defaultModel,
       mounts: opts.mounts,

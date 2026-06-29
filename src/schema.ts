@@ -10,6 +10,7 @@ export const SessionStateSchema = z.object({
   startedAt: z.iso.datetime(),
   autoRemove: z.boolean().default(false),
   credential: z.string().optional(),
+  persona: z.string().optional(),
   secrets: z.array(z.string()).default([]),
   mounts: z.array(z.string()).default([]),
   ports: z.array(z.string()).default([]),

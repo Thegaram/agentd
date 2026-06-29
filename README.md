@@ -90,6 +90,8 @@ The current directory is mounted read-write at `/workspace` by default. Port 300
 --secret scope           secret scopes to pass (defaults to agent-specific scope)
 --port [host:]container  port mappings (replaces default 3000; repeatable)
 --skip-ports             don't publish any ports
+--persona path           global persona/instructions file (overrides ~/.agentd/persona for this session)
+--no-persona             don't mount any persona/instructions file
 --dry-run                print the Docker command without executing
 ```
 
@@ -132,6 +134,25 @@ Run `agentd serve` to show a read-only web dashboard.
 
 ![agentd](assets/dashboard.png)
 
+### Agent persona
+
+Optionally, configure a global or per-session agent persona (Claude's global `CLAUDE.md` file or Codex's global `AGENTS.md` file).
+
+```bash
+mkdir -p ~/.agentd/persona
+
+# Use default.md for all agent types,
+# or claude.md/codex.md for harness-specific instructions.
+echo "Keep responses concise. No agent jargon." > ~/.agentd/persona/default.md
+```
+
+Per-session persona:
+
+```bash
+agentd shell --persona ./review-persona.md   # use a specific file for this session
+agentd shell --no-persona                    # mount nothing for this session
+```
+
 ### Shell completions
 
 Install for zsh (needs `jq` for session labels):
@@ -152,7 +173,7 @@ autoload -Uz compinit && compinit
 
 Claude sessions write conversation transcripts under `~/.agentd/transcripts/<uuid>/` on the host and are exposed to host tooling (e.g. `claude --resume`, the `/insights` skill) via a symlink under `~/.claude/projects/agentd-<uuid>/`. The bucket and symlink are kept on `agentd cancel` (including `--rm` exits) so longitudinal tooling can still read them; remove them by hand if you don't want them. Set `AGENTD_NO_TRANSCRIPTS=1` to disable persistence for new sessions.
 
-### Clipboard In Host tmux
+### Clipboard In host tmux
 
 `agentd` runs an inner `tmux` inside the container. To copy text from that inner shell all the way to your desktop clipboard when you launched `agentd` from a host `tmux`, make sure the host `tmux` forwards clipboard escape sequences:
 
