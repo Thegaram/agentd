@@ -59,6 +59,8 @@ _agentd() {
         "--skip-mount[Don't mount current directory]" \
         '*--port[Port mappings \[host\:\]container (replaces default 3000)]:port:' \
         "--skip-ports[Don't publish any ports]" \
+        '--persona[Path to a global persona/instructions file (overrides ~/.agentd/persona)]:persona file:_files' \
+        "--no-persona[Don't mount any persona/instructions file]" \
         '--dry-run[Print the Docker command without executing]'
       ;;
   esac

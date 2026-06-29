@@ -7,6 +7,9 @@ export function createPaths(home: string) {
     stateFile: join(home, "state.json"),
     secretFile: (scope: string) =>
       join(home, "secrets", `${scope}.env`),
+    // `scope` is an agent name or the shared-persona sentinel (PERSONA_DEFAULT_SCOPE)
+    personaFile: (scope: string) =>
+      join(home, "persona", `${scope}.md`),
     transcriptsHostDir: (key: string) =>
       join(home, "transcripts", key),
   } as const;

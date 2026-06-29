@@ -21,6 +21,16 @@ export interface AgentBackend {
   /** Extra environment variables to set inside the container. */
   readonly containerEnv?: Readonly<Record<string, string>>;
 
+  // ── Persona / global instructions (optional) ─────────────────────
+
+  /**
+   * Container path for the agent's global "persona" instruction file —
+   * Claude's global CLAUDE.md, Codex's global AGENTS.md. agentd bind-mounts a
+   * host file here read-only so a user-supplied persona applies to every new
+   * session. Omit to opt out (e.g. aider has no global instructions file).
+   */
+  readonly personaContainerPath?: string;
+
   // ── Session transcripts (optional) ───────────────────────────────
 
   /**

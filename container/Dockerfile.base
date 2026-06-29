@@ -137,10 +137,11 @@ RUN cargo install svm-rs \
   && svm use 0.8.28 \
   && rm -rf ~/.cargo/registry ~/.cargo/git
 
-# Install gopls (Go LSP server)
+# Install gopls (Go LSP server) and shfmt (shell formatter)
 ENV GOPATH="/home/agent/go"
 ENV PATH="/home/agent/go/bin:${PATH}"
-RUN go install golang.org/x/tools/gopls@latest
+RUN go install golang.org/x/tools/gopls@latest \
+  && go install mvdan.cc/sh/v3/cmd/shfmt@latest
 
 # Ruby gems install into the agent's home (GEM_HOME) so the agent can run
 # `gem install ...` / `bundle install` later without root. Jekyll + Bundler
@@ -163,6 +164,9 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/b
 # JS package managers, tools, and LSP servers
 RUN npm install -g pnpm yarn trash-cli @upstash/context7-mcp \
     typescript-language-server typescript pyright
+
+# Linters, formatters, structural search, and test runner (shared dev tooling)
+RUN npm install -g @ast-grep/cli oxlint oxfmt vitest
 
 # Install rust-analyzer
 RUN ARCH=$(dpkg --print-architecture) \

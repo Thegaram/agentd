@@ -20,6 +20,10 @@ export const claude: AgentBackend = {
   defaultModel: "opus[1m]",
   containerEnv: { CLAUDE_CODE_NO_FLICKER: "1" },
 
+  // Claude reads ~/.claude/CLAUDE.md as global user memory; it merges with any
+  // project-level ./CLAUDE.md and persists across /clear.
+  personaContainerPath: "/home/agent/.claude/CLAUDE.md",
+
   credentialShadowVars: ["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY"],
 
   credentialHostPath(paths: Paths): string {

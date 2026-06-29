@@ -7,6 +7,7 @@ import { startDashboard } from "./dashboard.js";
 import { formatAge } from "./format.js";
 import { paths } from "./paths.js";
 import { getBackend, AGENT_NAMES, DEFAULT_AGENT } from "./agents/index.js";
+import { resolvePersonaFile } from "./persona.js";
 
 /** Resolve agent name from mutually-exclusive boolean flags (--claude, --codex, etc.). */
 function resolveAgent(options: Record<string, unknown>): { name: string; explicit: boolean } {
@@ -276,6 +277,14 @@ cli.command("shell", {
       .boolean()
       .optional()
       .describe("Don't publish any ports"),
+    persona: z
+      .string()
+      .optional()
+      .describe("Path to a global persona/instructions file (overrides ~/.agentd/persona for this session)"),
+    "no-persona": z
+      .boolean()
+      .optional()
+      .describe("Don't mount any persona/instructions file"),
     "dry-run": z
       .boolean()
       .optional()
@@ -372,6 +381,21 @@ cli.command("shell", {
       if ((c.options.port != null || c.options["skip-ports"] != null) && !arraysEqual(existing.ports ?? [], ports)) {
         conflicts.push(`ports: existing session has [${(existing.ports ?? []).join(", ")}], wanted [${ports.join(", ")}]`);
       }
+      // Resolve against the existing session's agent, and skip entirely for
+      // backends that don't support a persona (e.g. aider never stores one,
+      // so any --persona/--no-persona request is a no-op, not a conflict).
+      if (
+        getBackend(existing.agent).personaContainerPath
+        && (c.options.persona != null || c.options["no-persona"] === true)
+      ) {
+        const wanted = resolvePersonaFile(
+          { agent: existing.agent, explicitPath: c.options.persona, disabled: c.options["no-persona"] },
+          paths,
+        );
+        if (wanted !== existing.persona) {
+          conflicts.push(`persona: existing session uses ${existing.persona ?? "none"}, wanted ${wanted ?? "none"}`);
+        }
+      }
       if (conflicts.length > 0) {
         throw new Error(
           `Session "${name}" exists with different options:\n`
@@ -397,7 +421,11 @@ cli.command("shell", {
     }
 
     const model = c.options.model ?? backend.defaultModel;
-    const spawnOpts = { name, backend, mounts, secrets, ports, model, rm };
+    const spawnOpts = {
+      name, backend, mounts, secrets, ports, model, rm,
+      persona: c.options.persona,
+      noPersona: c.options["no-persona"],
+    };
 
     if (c.options["dry-run"]) {
       const { dockerArgs, script } = await mgr.buildSpawnCommand(spawnOpts);

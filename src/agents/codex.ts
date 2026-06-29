@@ -164,6 +164,10 @@ export const codex: AgentBackend = {
   dockerImage: "agentd-codex:latest",
   defaultModel: "gpt-5.4",
 
+  // Codex reads ~/.codex/AGENTS.md as global guidance; it merges with any
+  // project-level AGENTS.md.
+  personaContainerPath: "/home/agent/.codex/AGENTS.md",
+
   credentialShadowVars: ["CODEX_API_KEY", "OPENAI_API_KEY"],
 
   credentialHostPath(paths: Paths): string {
