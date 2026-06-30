@@ -13,6 +13,21 @@ _agentd_sessions() {
   compadd -a labels
 }
 
+# --persona accepts a reusable persona name (~/.agentd/persona/<name>.md) or a
+# file path, so offer both the bare names and filesystem paths. `(N)` is
+# nullglob (no matches → empty, no error); `${f:t:r}` takes the basename and
+# strips the .md extension, leaving the name the CLI resolves.
+_agentd_personas() {
+  local persona_dir="${AGENTD_HOME:-$HOME/.agentd}/persona"
+  local -a names
+  local f
+  for f in "$persona_dir"/*.md(N); do
+    names+=("${f:t:r}")
+  done
+  (( ${#names} )) && _describe -t personas 'reusable persona' names
+  _files
+}
+
 _agentd() {
   local -a commands=(
     'ls:List all active sessions'
@@ -59,7 +74,7 @@ _agentd() {
         "--skip-mount[Don't mount current directory]" \
         '*--port[Port mappings \[host\:\]container (replaces default 3000)]:port:' \
         "--skip-ports[Don't publish any ports]" \
-        '--persona[Path to a global persona/instructions file (overrides ~/.agentd/persona)]:persona file:_files' \
+        '--persona[Reusable persona name (~/.agentd/persona/<name>.md) or a file path]:persona:_agentd_personas' \
         "--no-persona[Don't mount any persona/instructions file]" \
         '--dry-run[Print the Docker command without executing]'
       ;;
