@@ -90,7 +90,7 @@ The current directory is mounted read-write at `/workspace` by default. Port 300
 --secret scope           secret scopes to pass (defaults to agent-specific scope)
 --port [host:]container  port mappings (replaces default 3000; repeatable)
 --skip-ports             don't publish any ports
---persona path           global persona/instructions file (overrides ~/.agentd/persona for this session)
+--persona name|path      reusable persona name (~/.agentd/persona/<name>.md) or a file path, for this session
 --no-persona             don't mount any persona/instructions file
 --dry-run                print the Docker command without executing
 ```
@@ -144,13 +144,17 @@ mkdir -p ~/.agentd/persona
 # Use default.md for all agent types,
 # or claude.md/codex.md for harness-specific instructions.
 echo "Keep responses concise. No agent jargon." > ~/.agentd/persona/default.md
-```
 
-Per-session persona:
+agentd shell               # use default persona
+agentd shell --no-persona  # override
 
-```bash
-agentd shell --persona ./review-persona.md   # use a specific file for this session
-agentd shell --no-persona                    # mount nothing for this session
+# Add any number of named, reusable personas.
+echo "Be a meticulous code reviewer." > ~/.agentd/persona/reviewer.md
+
+agentd shell --persona reviewer
+
+# Or use a local .md file.
+agentd shell --persona ./designer.md
 ```
 
 ### Shell completions

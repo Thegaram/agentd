@@ -77,8 +77,9 @@ For backends that don't need credentials (like aider with local Ollama), set `re
 
 An optional "persona" file is bind-mounted read-only into the agent's global-instructions path so it applies to every new session: Claude's `~/.claude/CLAUDE.md`, Codex's `~/.codex/AGENTS.md`. A backend opts in via `personaContainerPath` (aider has none). It never touches `/workspace`, and merges with — doesn't replace — any project-level CLAUDE.md/AGENTS.md.
 
-- **agentd ships no defaults.** Nothing is mounted unless the user supplies a file. Resolution order is the pure `resolvePersonaFile` (`src/persona.ts`, unit-tested in `persona.test.ts`): `--no-persona` → `--persona <path>` → `~/.agentd/persona/<agent>.md` → `~/.agentd/persona/default.md` → none.
-- **Generic override = file, session override = flag.** Drop a file in `~/.agentd/persona/` to affect all new sessions with no flag; `--persona <path>` overrides it for one session; `--no-persona` suppresses it for one session.
+- **agentd ships no defaults.** Nothing is mounted unless the user supplies a file. Resolution order is the pure `resolvePersonaFile` (`src/persona.ts`, unit-tested in `persona.test.ts`): `--no-persona` → `--persona <name>` (reusable persona, see below) → `--persona <path>` → `~/.agentd/persona/<agent>.md` → `~/.agentd/persona/default.md` → none.
+- **Reusable personas by name.** `~/.agentd/persona/` holds reusable persona files: the per-agent `<agent>.md`, the shared `default.md`, or any named `<name>.md`. A bare `--persona <name>` (no path separator, no leading `~`; a `.md` suffix is optional) resolves to `~/.agentd/persona/<name>.md` if it exists, else falls back to being treated as a file path. A value with path information (`./x.md`, `dir/x`, `/abs/x.md`, `~/x.md`) is always a path.
+- **Generic override = file, session override = flag.** Drop a file in `~/.agentd/persona/` to affect all new sessions with no flag; `--persona <name|path>` overrides it for one session; `--no-persona` suppresses it for one session.
 - The resolved host path is stored on the session (`persona` in `schema.ts`) for opt-in resume conflict detection. The mount is part of the container config, so resume needs no re-mount.
 
 ## Dashboard (`agentd serve`)
@@ -128,6 +129,7 @@ agentd cancel <name>      # remove
 - **Run `npm run build` before considering a change complete.**
 - **Extract testable logic from side-effecting functions.** Pull decision logic into pure functions and unit test them.
 - **Define shared constants once.** When two components must agree on a value, share it or cross-reference with a comment.
+- **Keep user-facing surfaces in sync.** When you add or change a CLI command/flag (or its behavior), update all of: this `CLAUDE.md`, `README.md`, and the zsh completions in `completions/_agentd`.
 
 ## Test strategy
 

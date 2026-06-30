@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 
 import { resolvePersonaFile } from "./persona.js";
@@ -46,6 +46,41 @@ describe("resolvePersonaFile", () => {
   it("uses an explicit --persona path over any generic file", () => {
     writeFileSync(paths.personaFile("claude"), "# generic");
     const explicit = join(home, "my-persona.md");
+    writeFileSync(explicit, "# explicit");
+    expect(resolvePersonaFile({ agent: "claude", explicitPath: explicit }, paths)).toBe(explicit);
+  });
+
+  it("resolves a bare --persona name to a reusable persona file", () => {
+    const named = paths.personaFile("abc");
+    writeFileSync(named, "# abc");
+    expect(resolvePersonaFile({ agent: "claude", explicitPath: "abc" }, paths)).toBe(named);
+  });
+
+  it("resolves a bare --persona name with an .md suffix", () => {
+    const named = paths.personaFile("abc");
+    writeFileSync(named, "# abc");
+    expect(resolvePersonaFile({ agent: "claude", explicitPath: "abc.md" }, paths)).toBe(named);
+  });
+
+  it("falls back to a file path when a bare --persona name has no reusable file", () => {
+    // run from `home` so the bare name resolves there as a relative path.
+    // After chdir, process.cwd() returns the canonical path (e.g. macOS
+    // /var -> /private/var), so derive the expected path via resolve() too
+    // rather than join(home, ...), which would keep the pre-symlink path.
+    const cwd = process.cwd();
+    process.chdir(home);
+    try {
+      const explicit = resolve("abc.md");
+      writeFileSync(explicit, "# explicit");
+      expect(resolvePersonaFile({ agent: "claude", explicitPath: "abc.md" }, paths)).toBe(explicit);
+    } finally {
+      process.chdir(cwd);
+    }
+  });
+
+  it("treats a value with a path separator as a path, not a reusable name", () => {
+    writeFileSync(paths.personaFile("abc"), "# reusable abc");
+    const explicit = join(home, "abc.md");
     writeFileSync(explicit, "# explicit");
     expect(resolvePersonaFile({ agent: "claude", explicitPath: explicit }, paths)).toBe(explicit);
   });

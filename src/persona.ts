@@ -6,6 +6,16 @@ import type { Paths } from "./paths.js";
 /** Persona scope that applies to every agent when no per-agent file exists. */
 export const PERSONA_DEFAULT_SCOPE = "default";
 
+/**
+ * A `--persona <value>` arg is a reusable-persona *name* (looked up under
+ * ~/.agentd/persona/) only when it carries no path information: no path
+ * separator (`/`) and no leading `~`. `abc` and `abc.md` are names; `./abc.md`,
+ * `dir/abc`, `/abs/abc.md`, `~/abc.md` are paths.
+ */
+function isPersonaName(value: string): boolean {
+  return !value.includes("/") && !value.startsWith("~");
+}
+
 export interface PersonaOptions {
   /** Agent name, used to look up a per-agent override file. */
   agent: string;
@@ -20,11 +30,17 @@ export interface PersonaOptions {
  * into a session, or `undefined` when nothing should be mounted.
  *
  * Precedence (first match wins):
- *   1. `--no-persona`            → none (disabled)
- *   2. `--persona <path>`        → that path (throws if missing)
- *   3. ~/.agentd/persona/<agent>.md   (generic, per-agent)
- *   4. ~/.agentd/persona/default.md   (generic, all agents)
- *   5. otherwise                 → none (no persona — the default)
+ *   1. `--no-persona`                 → none (disabled)
+ *   2. `--persona <name>`             → ~/.agentd/persona/<name>.md if it exists
+ *   3. `--persona <value>`            → that file path (throws if missing)
+ *   4. ~/.agentd/persona/<agent>.md   (generic, per-agent)
+ *   5. ~/.agentd/persona/default.md   (generic, all agents)
+ *   6. otherwise                      → none (no persona — the default)
+ *
+ * A bare `--persona <name>` (no path separator) is first looked up as a
+ * reusable persona under ~/.agentd/persona/; if no such file exists it falls
+ * back to being treated as a file path. A value with path information is always
+ * a path.
  *
  * agentd ships no defaults: a persona only applies if the user provides one.
  */
@@ -32,7 +48,13 @@ export function resolvePersonaFile(opts: PersonaOptions, paths: Paths): string |
   if (opts.disabled) return undefined;
 
   if (opts.explicitPath != null) {
-    const abs = resolve(opts.explicitPath);
+    const value = opts.explicitPath;
+    if (isPersonaName(value)) {
+      const name = value.endsWith(".md") ? value.slice(0, -3) : value;
+      const named = paths.personaFile(name);
+      if (existsSync(named)) return named;
+    }
+    const abs = resolve(value);
     if (!existsSync(abs)) {
       throw new Error(`Persona file not found: ${abs}`);
     }

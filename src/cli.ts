@@ -280,7 +280,7 @@ cli.command("shell", {
     persona: z
       .string()
       .optional()
-      .describe("Path to a global persona/instructions file (overrides ~/.agentd/persona for this session)"),
+      .describe("Reusable persona name (~/.agentd/persona/<name>.md) or path to a persona/instructions file, for this session"),
     "no-persona": z
       .boolean()
       .optional()
