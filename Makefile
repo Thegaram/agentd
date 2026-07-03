@@ -1,4 +1,4 @@
-.PHONY: build build-base build-claude build-codex build-aider install
+.PHONY: build build-base build-claude build-codex build-aider build-pi install
 
 DOCKER_BUILD_FLAGS ?=
 AGENTD_COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
@@ -15,10 +15,13 @@ build-codex: build-base
 build-aider: build-base
 	docker build $(DOCKER_BUILD_FLAGS) -t agentd-aider:latest -f container/aider/Dockerfile container/aider/
 
+build-pi: build-base
+	docker build $(DOCKER_BUILD_FLAGS) -t agentd-pi:latest -f container/pi/Dockerfile container/pi/
+
 build:
 	npm install
 	npm run build
-	$(MAKE) build-base build-claude build-codex build-aider
+	$(MAKE) build-base build-claude build-codex build-aider build-pi
 
 install: build
 	npm link

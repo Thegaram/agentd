@@ -211,7 +211,7 @@ RUN printf '%s\n' \
 
 WORKDIR /workspace
 
-# tmux config: truecolor passthrough, theme detection, mouse
+# tmux config: truecolor passthrough, theme detection, mouse, extended keys
 RUN printf '%s\n' \
     'set -g default-terminal "tmux-256color"' \
     'set -as terminal-features ",xterm*:clipboard:RGB"' \
@@ -221,6 +221,9 @@ RUN printf '%s\n' \
     'set -s set-clipboard on' \
     'set -g copy-command "bash /agentd/copy-clipboard.sh"' \
     'set -g mouse on' \
+    'set -g extended-keys on' \
+    'set -g extended-keys-format csi-u' \
+    'set -as terminal-features ",xterm*:extkeys"' \
     > /home/agent/.tmux.conf \
   && chown agent:agent /home/agent/.tmux.conf
 

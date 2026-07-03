@@ -11,6 +11,7 @@ import {
   inferCodexThemeFromOsc11,
 } from "./codex.js";
 import { aider } from "./aider.js";
+import { pi } from "./pi.js";
 import { credentialPreamble } from "./types.js";
 
 describe("agent registry", () => {
@@ -26,15 +27,20 @@ describe("agent registry", () => {
     expect(getBackend("aider")).toBe(aider);
   });
 
+  it("returns pi backend by name", () => {
+    expect(getBackend("pi")).toBe(pi);
+  });
+
   it("throws on unknown backend with available list", () => {
     expect(() => getBackend("unknown")).toThrow(/Unknown agent backend: "unknown"/);
-    expect(() => getBackend("unknown")).toThrow(/available: claude, codex, aider/);
+    expect(() => getBackend("unknown")).toThrow(/available: claude, codex, aider, pi/);
   });
 
   it("lists all available agent names", () => {
     expect(AGENT_NAMES).toContain("claude");
     expect(AGENT_NAMES).toContain("codex");
     expect(AGENT_NAMES).toContain("aider");
+    expect(AGENT_NAMES).toContain("pi");
   });
 
   it("default agent is claude", () => {
@@ -283,5 +289,67 @@ describe("aider backend", () => {
   it("has no theme methods", () => {
     expect(aider.applyThemeCommand).toBeUndefined();
     expect(aider.hostTheme).toBeUndefined();
+  });
+});
+
+describe("pi backend", () => {
+  it("has correct docker image", () => {
+    expect(pi.dockerImage).toBe("agentd-pi:latest");
+  });
+
+  it("generates start command without a model (pi decides)", () => {
+    expect(pi.startCommand()).toBe("pi || exec bash");
+  });
+
+  it("generates start command with model override", () => {
+    expect(pi.startCommand("openai/gpt-4o")).toBe('pi --model "openai/gpt-4o" || exec bash');
+  });
+
+  it("resume continues most recent, then falls back to fresh, then shell", () => {
+    expect(pi.resumeCommand()).toBe("pi -c || pi || exec bash");
+  });
+
+  it("resume command threads the model into both attempts", () => {
+    expect(pi.resumeCommand("sonnet:high")).toBe(
+      'pi -c --model "sonnet:high" || pi --model "sonnet:high" || exec bash',
+    );
+  });
+
+  it("has an empty default model so pi selects its own", () => {
+    expect(pi.defaultModel).toBe("");
+    expect(pi.startCommand(pi.defaultModel)).toBe("pi || exec bash");
+  });
+
+  it("mounts persona at the pi global AGENTS.md path", () => {
+    expect(pi.personaContainerPath).toBe("/home/agent/.pi/agent/AGENTS.md");
+  });
+
+  it("declares no credential-file mount (pi owns its own auth.json)", () => {
+    // pi rewrites ~/.pi/agent/auth.json via atomic rename, so a read-only host
+    // mount would block the write; agentd mounts nothing at that path.
+    expect(pi.credentialHostPath).toBeUndefined();
+    expect(pi.credentialContainerPath).toBeUndefined();
+  });
+
+  it("does not require auth up front (interactive /login or --secret pi.env)", () => {
+    expect(pi.requiresAuth).toBe(false);
+    expect(pi.noAuthWarning).toBe("");
+  });
+
+  it("skips pi's version-check network call via containerEnv", () => {
+    expect(pi.containerEnv).toEqual({ PI_SKIP_VERSION_CHECK: "1" });
+  });
+
+  it("has empty credential shadow vars", () => {
+    expect(pi.credentialShadowVars).toEqual([]);
+  });
+
+  it("produces empty credential preamble", () => {
+    expect(credentialPreamble(pi)).toBe("");
+  });
+
+  it("has no theme methods", () => {
+    expect(pi.applyThemeCommand).toBeUndefined();
+    expect(pi.hostTheme).toBeUndefined();
   });
 });

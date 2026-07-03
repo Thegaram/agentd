@@ -309,9 +309,15 @@ export class SessionManager {
     this.store = new SessionStore(this.paths.stateFile);
   }
 
+  /** A backend's credential-file host path (if any) and whether it exists. */
+  private credentialState(backend: AgentBackend): { hostPath: string | undefined; exists: boolean } {
+    const hostPath = backend.credentialHostPath?.(this.paths);
+    return { hostPath, exists: hostPath ? existsSync(hostPath) : false };
+  }
+
   /** Whether the given backend's credential file exists on the host. */
   hasCredentials(backend: AgentBackend): boolean {
-    return existsSync(backend.credentialHostPath(this.paths));
+    return this.credentialState(backend).exists;
   }
 
   /**
@@ -358,14 +364,14 @@ export class SessionManager {
       dockerArgs.push("-p", port);
     }
 
-    const hasCreds = existsSync(backend.credentialHostPath(this.paths));
+    const { hostPath: credHostPath, exists: hasCreds } = this.credentialState(backend);
     mountSecretFilesStrict(
       dockerArgs, opts.secrets, this.paths.secretFile, hasCreds,
       (p) => backend.secretMissingHint(p), backend.noAuthWarning,
     );
 
-    if (hasCreds) {
-      dockerArgs.push("-v", `${backend.credentialHostPath(this.paths)}:${backend.credentialContainerPath}:ro`);
+    if (hasCreds && credHostPath && backend.credentialContainerPath) {
+      dockerArgs.push("-v", `${credHostPath}:${backend.credentialContainerPath}:ro`);
     }
 
     // Global persona/instructions file (Claude global CLAUDE.md, Codex global
@@ -449,8 +455,7 @@ export class SessionManager {
     await this.writeCmdFile(containerId, script);
     await dockerStart(containerId);
 
-    const credPath = opts.backend.credentialHostPath(this.paths);
-    const hasCreds = existsSync(credPath);
+    const { hostPath: credPath, exists: hasCreds } = this.credentialState(opts.backend);
 
     // Save session immediately after start so the container is always
     // tracked in state.json — prevents ghost containers if later steps fail.

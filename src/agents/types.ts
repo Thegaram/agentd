@@ -48,11 +48,18 @@ export interface AgentBackend {
   /** Env vars that shadow a credential file and must be unset when it's mounted. */
   readonly credentialShadowVars: readonly string[];
 
-  /** Host path to the credential file (e.g. ~/.agentd/secrets/claude-oauth.json). */
-  credentialHostPath(paths: Paths): string;
+  /**
+   * Host path to the credential file (e.g. ~/.agentd/secrets/claude-oauth.json).
+   * Omit for agents that manage their own credential file inside the container
+   * (e.g. pi writes/refreshes ~/.pi/agent/auth.json itself via /login, so a
+   * read-only host mount would block its atomic rewrite). When omitted, agentd
+   * mounts nothing at the auth path and the in-container login persists in the
+   * container's writable layer across stop/resume.
+   */
+  credentialHostPath?(paths: Paths): string;
 
-  /** Container-side mount target for the credential file. */
-  readonly credentialContainerPath: string;
+  /** Container-side mount target for the credential file. Omit when credentialHostPath is omitted. */
+  readonly credentialContainerPath?: string;
 
   // ── Agent CLI commands ───────────────────────────────────────────
 
@@ -93,7 +100,7 @@ export interface AgentBackend {
  * Derived from the backend's credentialContainerPath and credentialShadowVars.
  */
 export function credentialPreamble(backend: AgentBackend): string {
-  if (backend.credentialShadowVars.length === 0) return "";
+  if (backend.credentialShadowVars.length === 0 || !backend.credentialContainerPath) return "";
   const vars = backend.credentialShadowVars.join(" ");
   return `if [ -f "${backend.credentialContainerPath}" ]; then unset ${vars} 2>/dev/null; fi`;
 }
