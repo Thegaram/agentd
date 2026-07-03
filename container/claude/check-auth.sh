@@ -1,4 +1,6 @@
 #!/bin/bash
+set -euo pipefail
+
 # Check OAuth credential expiry and output a tmux status segment if expired/expiring.
 # Called periodically by tmux status-right via #(bash /agentd/check-auth.sh).
 #
@@ -13,7 +15,7 @@ CREDS="${AGENTD_CREDS_FILE:-/home/agent/.claude/.credentials.json}"
 ENV_FILE="${AGENTD_CLAUDE_ENV_FILE:-/run/secrets/claude.env}"
 
 has_env_auth() {
-  [ -f "$ENV_FILE" ] && \
+  [ -f "$ENV_FILE" ] &&
     grep -qE '^[[:space:]]*(export[[:space:]]+)?(ANTHROPIC_API_KEY|CLAUDE_CODE_OAUTH_TOKEN)=' "$ENV_FILE"
 }
 
@@ -25,7 +27,8 @@ if [ ! -f "$CREDS" ]; then
   exit 0
 fi
 
-EXPIRES_AT=$(jq -r '.claudeAiOauth.expiresAt // empty' "$CREDS" 2>/dev/null)
+# `|| true` so a malformed creds file (jq non-zero) doesn't abort under `set -e`.
+EXPIRES_AT=$(jq -r '.claudeAiOauth.expiresAt // empty' "$CREDS" 2>/dev/null || true)
 
 if [ -z "$EXPIRES_AT" ]; then
   # No expiry field — can't check, assume OK
@@ -47,6 +50,6 @@ REMAINING=$((EXPIRES_EPOCH - NOW))
 if [ "$REMAINING" -le 0 ]; then
   echo "#[fg=white,bg=colour124,bold] AUTH EXPIRED #[fg=colour245,bg=colour236] re-export creds on host "
 elif [ "$REMAINING" -le 300 ]; then
-  MINS=$(( (REMAINING + 59) / 60 ))
+  MINS=$(((REMAINING + 59) / 60))
   echo "#[fg=black,bg=colour214,bold] AUTH ${MINS}m #[fg=colour245,bg=colour236] re-export soon "
 fi

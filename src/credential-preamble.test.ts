@@ -35,6 +35,7 @@ function runPreamble(opts: {
   const tmpDir = execSync("mktemp -d").toString().trim();
   try {
     const containerPath = opts.backend.credentialContainerPath;
+    if (!containerPath) throw new Error("test backend must declare credentialContainerPath");
     const credsFile = `${tmpDir}${containerPath}`;
     execSync(`mkdir -p $(dirname ${credsFile})`);
     if (opts.credsFileExists) {
@@ -134,6 +135,7 @@ function runBashrc(opts: {
   const tmpDir = execSync("mktemp -d").toString().trim();
   try {
     const containerPath = opts.backend.credentialContainerPath;
+    if (!containerPath) throw new Error("test backend must declare credentialContainerPath");
     const credsFile = `${tmpDir}${containerPath}`;
     const secretsDir = `${tmpDir}/secrets`;
     execSync(`mkdir -p $(dirname ${credsFile}) ${secretsDir}`);

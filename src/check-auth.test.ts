@@ -94,3 +94,87 @@ describe("check-auth.sh", () => {
     expect(stdout).toContain("AUTH EXPIRED");
   });
 });
+
+/**
+ * Tests for the pi and codex check-auth.sh scripts. Same tmux-server-environment
+ * caveat as Claude's: the --secret <agent>.env vars are sourced into the pane,
+ * not visible here, so API-key auth must be detected by inspecting the secret
+ * file rather than reading env vars.
+ */
+
+function runAgentCheckAuth(
+  agent: "pi" | "codex",
+  opts: { auth?: string | null; envFile?: string | null },
+): string {
+  const dir = mkdtempSync(join(tmpdir(), `check-auth-${agent}-`));
+  try {
+    const authPath = join(dir, "auth.json");
+    const envPath = join(dir, `${agent}.env`);
+    if (opts.auth != null) writeFileSync(authPath, opts.auth);
+    if (opts.envFile != null) writeFileSync(envPath, opts.envFile);
+    const env = {
+      ...process.env,
+      AGENTD_CREDS_FILE: authPath,
+      [`AGENTD_${agent.toUpperCase()}_ENV_FILE`]: envPath,
+    };
+    const script = join(__dirname, "..", "container", agent, "check-auth.sh");
+    try {
+      return execSync(`bash ${script}`, { env, encoding: "utf8" });
+    } catch (e: unknown) {
+      return (e as { stdout?: Buffer }).stdout?.toString() ?? "";
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+describe("pi check-auth.sh", () => {
+  it("shows NO CREDS when neither auth.json nor a key exists", () => {
+    expect(runAgentCheckAuth("pi", {})).toContain("NO CREDS");
+  });
+
+  it("is silent when auth.json exists (subscription/login)", () => {
+    expect(runAgentCheckAuth("pi", { auth: "{}" }).trim()).toBe("");
+  });
+
+  it("is silent for an API key in the secret file (not read from env)", () => {
+    // The regression: env vars aren't in the tmux-server scope, so this must be
+    // detected by grepping /run/secrets/pi.env, not by reading $OPENAI_API_KEY.
+    expect(runAgentCheckAuth("pi", { envFile: "export OPENAI_API_KEY=sk-xxx\n" }).trim()).toBe("");
+  });
+
+  it("accepts any provider *_API_KEY in the secret file", () => {
+    expect(runAgentCheckAuth("pi", { envFile: "MISTRAL_API_KEY=xxx\n" }).trim()).toBe("");
+  });
+
+  it("shows NO CREDS when the secret file has no key", () => {
+    expect(runAgentCheckAuth("pi", { envFile: "SOME_OTHER_VAR=foo\n" })).toContain("NO CREDS");
+  });
+
+  it("ignores commented-out keys", () => {
+    expect(runAgentCheckAuth("pi", { envFile: "#OPENAI_API_KEY=sk-xxx\n" })).toContain("NO CREDS");
+  });
+});
+
+describe("codex check-auth.sh", () => {
+  it("shows NO CREDS when neither auth.json nor a key exists", () => {
+    expect(runAgentCheckAuth("codex", {})).toContain("NO CREDS");
+  });
+
+  it("is silent when auth.json exists", () => {
+    expect(runAgentCheckAuth("codex", { auth: "{}" }).trim()).toBe("");
+  });
+
+  it("is silent for CODEX_API_KEY / OPENAI_API_KEY in the secret file (not env)", () => {
+    expect(runAgentCheckAuth("codex", { envFile: "export OPENAI_API_KEY=sk-xxx\n" }).trim()).toBe("");
+    expect(runAgentCheckAuth("codex", { envFile: "CODEX_API_KEY=sk-xxx\n" }).trim()).toBe("");
+  });
+
+  it("shows NO CREDS when the secret file has no relevant key", () => {
+    expect(runAgentCheckAuth("codex", { envFile: "SOME_OTHER_VAR=foo\n" })).toContain("NO CREDS");
+  });
+
+  it("ignores commented-out keys", () => {
+    expect(runAgentCheckAuth("codex", { envFile: "#OPENAI_API_KEY=sk-xxx\n" })).toContain("NO CREDS");
+  });
+});

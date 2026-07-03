@@ -2,8 +2,9 @@ import type { AgentBackend } from "./types.js";
 import { claude } from "./claude.js";
 import { codex } from "./codex.js";
 import { aider } from "./aider.js";
+import { pi } from "./pi.js";
 
-const backends: Record<string, AgentBackend> = { claude, codex, aider };
+const backends: Record<string, AgentBackend> = { claude, codex, aider, pi };
 
 export function getBackend(name: string): AgentBackend {
   const backend = backends[name];
@@ -24,3 +25,4 @@ export { credentialPreamble } from "./types.js";
 export { claude } from "./claude.js";
 export { codex } from "./codex.js";
 export { aider } from "./aider.js";
+export { pi } from "./pi.js";

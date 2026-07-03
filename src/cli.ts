@@ -8,6 +8,7 @@ import { formatAge } from "./format.js";
 import { paths } from "./paths.js";
 import { getBackend, AGENT_NAMES, DEFAULT_AGENT } from "./agents/index.js";
 import { resolvePersonaFile } from "./persona.js";
+import { shellOptionsSchema } from "./shell-options.js";
 
 /** Resolve agent name from mutually-exclusive boolean flags (--claude, --codex, etc.). */
 function resolveAgent(options: Record<string, unknown>): { name: string; explicit: boolean } {
@@ -236,60 +237,7 @@ cli.command("shell", {
       .optional()
       .describe("Session label (defaults to current folder name, e.g. 'my-project')"),
   }),
-  options: z.object({
-    claude: z
-      .boolean()
-      .optional()
-      .describe("Use Claude Code backend (default)"),
-    codex: z
-      .boolean()
-      .optional()
-      .describe("Use OpenAI Codex backend"),
-    aider: z
-      .boolean()
-      .optional()
-      .describe("Use aider backend (local Ollama)"),
-    model: z
-      .string()
-      .optional()
-      .describe("Model override (agent-specific, e.g. opus, gpt-5.4)"),
-    rm: z
-      .boolean()
-      .optional()
-      .describe("Remove container when session ends"),
-    mount: z
-      .array(z.string())
-      .optional()
-      .describe("Mount paths, replaces default cwd mount (host:container)"),
-    "skip-mount": z
-      .boolean()
-      .optional()
-      .describe("Don't mount current directory"),
-    secret: z
-      .array(z.string())
-      .optional()
-      .describe("Secret scopes to pass (defaults to agent-specific scope)"),
-    port: z
-      .array(z.string())
-      .optional()
-      .describe("Port mappings [host:]container (replaces default 3000)"),
-    "skip-ports": z
-      .boolean()
-      .optional()
-      .describe("Don't publish any ports"),
-    persona: z
-      .string()
-      .optional()
-      .describe("Reusable persona name (~/.agentd/persona/<name>.md) or path to a persona/instructions file, for this session"),
-    "no-persona": z
-      .boolean()
-      .optional()
-      .describe("Don't mount any persona/instructions file"),
-    "dry-run": z
-      .boolean()
-      .optional()
-      .describe("Print the Docker command without executing"),
-  }),
+  options: shellOptionsSchema,
   output: z.object({
     name: z.string(),
     agent: z.string(),
@@ -329,7 +277,6 @@ cli.command("shell", {
     const agent = resolveAgent(c.options);
     const agentName = agent.name;
     const backend = getBackend(agentName);
-    const explicitTheme = await backend.explicitHostTheme?.();
 
     const cwd = process.cwd();
     const rm = c.options.rm ?? false;
@@ -362,10 +309,12 @@ cli.command("shell", {
         const has = existing.model ?? "default";
         conflicts.push(`model: existing session uses ${has}, wanted ${c.options.model}`);
       }
-      if (explicitTheme != null && explicitTheme !== existing.theme) {
-        const has = existing.theme ?? "none";
-        const wanted = explicitTheme;
-        conflicts.push(`theme: existing session uses ${has}, wanted ${wanted}`);
+      // Theme is host-derived, not a flag, so evaluate it against the session's
+      // own backend. A bare resume defaults the agent, so reading the theme from
+      // `backend` would compare e.g. a pi session (no theme) against Claude's.
+      const existingTheme = await getBackend(existing.agent).explicitHostTheme?.();
+      if (existingTheme != null && existingTheme !== existing.theme) {
+        conflicts.push(`theme: existing session uses ${existing.theme ?? "none"}, wanted ${existingTheme}`);
       }
       if (c.options.rm != null && rm !== existing.autoRemove) {
         const has = existing.autoRemove ? "auto-remove" : "persistent";

@@ -1,4 +1,6 @@
 #!/bin/bash
+set -euo pipefail
+
 # Check Ollama reachability and output a tmux status segment.
 # Called periodically by tmux status-right via #(bash /agentd/check-auth.sh).
 

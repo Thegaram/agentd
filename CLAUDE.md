@@ -1,6 +1,6 @@
 # agentd
 
-Sandboxed AI coding agent sessions. Supports multiple agent backends (Claude Code, OpenAI Codex, aider with local models).
+Sandboxed AI coding agent sessions. Supports multiple agent backends (Claude Code, OpenAI Codex, aider with local models, pi).
 
 ## Architecture
 
@@ -14,6 +14,7 @@ agentd CLI (TypeScript, runs on host)
 ```
 src/
   cli.ts           ← CLI entry point (incur framework)
+  shell-options.ts ← `agentd shell` option schema (side-effect-free; --<agent> flags)
   session.ts       ← SessionManager: spawn, attach, cancel, container lifecycle
   store.ts         ← SessionStore: state.json persistence
   docker.ts        ← thin Docker CLI wrappers
@@ -26,6 +27,7 @@ src/
     claude.ts      ← Claude Code backend
     codex.ts       ← OpenAI Codex backend
     aider.ts       ← aider backend (local Ollama)
+    pi.ts          ← pi backend (pi.dev, BYOK multi-provider)
     index.ts       ← backend registry, getBackend()
 container/
   Dockerfile.base  ← shared dev tools, languages, tmux
@@ -43,6 +45,10 @@ container/
   aider/
     Dockerfile     ← FROM agentd-base, aider install
     check-auth.sh  ← Ollama reachability check
+  pi/
+    Dockerfile     ← FROM agentd-base, pi install (npm, pinned)
+    settings.json  ← baked pi defaults (telemetry off, no compaction, project-trust "ask")
+    check-auth.sh  ← auth.json / provider-key check
 completions/
   _agentd          ← zsh completions
 ~/.agentd/
@@ -67,11 +73,15 @@ completions/
 2. Register it in `src/agents/index.ts`
 3. Create `container/myagent/Dockerfile` (FROM agentd-base) + config files
 4. Add `build-myagent` target to Makefile
-5. No changes needed in session.ts, store.ts, or cli.ts
+5. Add a `--myagent` boolean flag to `shellOptionsSchema` in `src/shell-options.ts`
+6. Add the `--myagent` flag to the zsh completions in `completions/_agentd`
+7. No changes needed in session.ts or store.ts
 
-The `--myagent` CLI flag is auto-derived from `AGENT_NAMES` in the registry.
+`resolveAgent` derives the selected backend from `AGENT_NAMES`, but the mutually-exclusive `--<name>` flags must be **declared** in `shellOptionsSchema` — an undeclared flag fails with "Unknown flag". `shell-options.test.ts` asserts every `AGENT_NAMES` entry has a flag, so a missing one fails CI.
 
 For backends that don't need credentials (like aider with local Ollama), set `requiresAuth: false` — this skips secret file lookup and suppresses the no-auth warning. See `src/agents/aider.ts` for the pattern.
+
+**Credential-file mount is optional.** Omit `credentialHostPath`/`credentialContainerPath` when the agent owns its credential file. pi rewrites `~/.pi/agent/auth.json` via atomic rename (`/login`, OAuth refresh), which a read-only mount blocks — so agentd mounts nothing there and the in-container login persists in the writable layer across resume. An API key can still go through `--secret pi`. See `src/agents/pi.ts`.
 
 ## Persona / global instructions
 

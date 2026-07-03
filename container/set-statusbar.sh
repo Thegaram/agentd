@@ -1,4 +1,6 @@
 #!/bin/bash
+set -euo pipefail
+
 # Apply the agentd tmux status bar from environment variables.
 #
 # Environment:
