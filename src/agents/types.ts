@@ -34,14 +34,13 @@ export interface AgentBackend {
   // ── Session transcripts (optional) ───────────────────────────────
 
   /**
-   * Opt in to per-session transcript persistence. agentd bind-mounts a
-   * host bucket at `containerDir` and exposes the bucket to host tooling
-   * (e.g. /insights) by symlinking it under `hostDiscoverableDir`.
+   * Container path where the agent writes its session/conversation logs.
+   * agentd bind-mounts a per-session host bucket (`~/.agentd/transcripts/<uuid>/`)
+   * here so the logs persist on the host across container removal — available
+   * for future tooling (memory, continuous improvement). Set
+   * AGENTD_NO_TRANSCRIPTS=1 to opt out. Omit for a backend with no session logs.
    */
-  readonly transcripts?: {
-    containerDir: string;
-    hostDiscoverableDir(): string;
-  };
+  readonly transcriptsDir?: string;
 
   // ── Credentials ──────────────────────────────────────────────────
 

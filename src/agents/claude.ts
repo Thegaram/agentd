@@ -32,14 +32,11 @@ export const claude: AgentBackend = {
 
   credentialContainerPath: "/home/agent/.claude/.credentials.json",
 
-  transcripts: {
-    // Claude encodes cwd as the project dir (slashes → dashes), so the
-    // container's WORKSPACE_DIR=/workspace (set in container/Dockerfile.base)
-    // becomes "-workspace". Bind-mounting only this subdir keeps other host
-    // projects out of the container.
-    containerDir: "/home/agent/.claude/projects/-workspace",
-    hostDiscoverableDir: (): string => join(homedir(), ".claude", "projects"),
-  },
+  // Claude encodes cwd as the project dir (slashes → dashes), so the
+  // container's WORKSPACE_DIR=/workspace (set in container/Dockerfile.base)
+  // becomes "-workspace". Bind-mounting only this subdir keeps other host
+  // projects out of the container.
+  transcriptsDir: "/home/agent/.claude/projects/-workspace",
 
   startCommand(model?: string): string {
     const modelFlag = model ? ` --model "${model}"` : "";

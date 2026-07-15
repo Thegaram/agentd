@@ -168,6 +168,11 @@ export const codex: AgentBackend = {
   // project-level AGENTS.md.
   personaContainerPath: "/home/agent/.codex/AGENTS.md",
 
+  // Codex writes rollout JSONL under ~/.codex/sessions/YYYY/MM/DD/. Persisting
+  // this dir keeps full session history on the host; it's a separate path from
+  // the auth.json file mount, so the two don't collide.
+  transcriptsDir: "/home/agent/.codex/sessions",
+
   credentialShadowVars: ["CODEX_API_KEY", "OPENAI_API_KEY"],
 
   credentialHostPath(paths: Paths): string {

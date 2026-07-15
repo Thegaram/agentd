@@ -4,3 +4,4 @@ dist/
 .worktrees/
 .claude/
 .DS_Store
+.aider*

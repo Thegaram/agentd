@@ -24,6 +24,11 @@ export const pi: AgentBackend = {
   // project-level AGENTS.md/CLAUDE.md.
   personaContainerPath: "/home/agent/.pi/agent/AGENTS.md",
 
+  // pi auto-saves sessions as JSONL under ~/.pi/agent/sessions/. This is a
+  // subdir, so mounting it doesn't touch the auth.json/settings.json that pi
+  // rewrites in place (which a mount would block — see the credential note).
+  transcriptsDir: "/home/agent/.pi/agent/sessions",
+
   // No mounted credential file. pi owns ~/.pi/agent/auth.json and rewrites it via
   // atomic rename (on /login and on OAuth refresh); a read-only single-file bind
   // mount blocks that write (EROFS/EBUSY), so the login would appear to succeed

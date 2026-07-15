@@ -92,13 +92,22 @@ An optional "persona" file is bind-mounted read-only into the agent's global-ins
 - **Generic override = file, session override = flag.** Drop a file in `~/.agentd/persona/` to affect all new sessions with no flag; `--persona <name|path>` overrides it for one session; `--no-persona` suppresses it for one session.
 - The resolved host path is stored on the session (`persona` in `schema.ts`) for opt-in resume conflict detection. The mount is part of the container config, so resume needs no re-mount.
 
+## Session transcripts
+
+Every backend persists its session logs to the host so they survive container removal and are available to future tooling (memory, continuous improvement). A backend opts in via `transcriptsDir` (`agents/types.ts`) — the container path where the agent writes its logs: Claude `~/.claude/projects/-workspace`, Codex `~/.codex/sessions`, pi `~/.pi/agent/sessions`, aider `~/.aider/sessions` (aider's chat/input history is redirected there via `--chat-history-file`/`--input-history-file`, out of the repo; its repo-map tags cache `.aider.tags.cache.v4` is a per-repo performance cache, not a session log, so it stays in `/workspace` — aider git-ignores it by default).
+
+- **Mechanism.** On spawn, agentd generates a `transcriptsKey` (UUID), mkdirs `~/.agentd/transcripts/<key>/`, and bind-mounts it over the backend's `transcriptsDir` (`transcriptsMountArg`). The key is stored on the session (`transcriptsKey` in `schema.ts`); the mount is part of the container config, so resume needs no re-mount.
+- **No host-config symlink.** agentd deliberately does *not* link the bucket into the host's own agent dir (e.g. `~/.claude/projects/`). The sandbox's transcripts stay under `~/.agentd/` and never merge into the host user's personal history — keeping the container→host boundary intact.
+- **Opt out** with `AGENTD_NO_TRANSCRIPTS=1` (no key generated, no mount). Data is kept on `agentd cancel`/`--rm`; remove by hand to delete it.
+- **pi caveat.** `transcriptsDir` must be a subdir of the agent's config dir that the agent doesn't rewrite in place — pi's `~/.pi/agent/sessions` is safe, but mounting `~/.pi/agent` itself would block the atomic auth.json rewrite (see `agents/pi.ts`).
+
 ## Dashboard (`agentd serve`)
 
 A **read-only** web dashboard for all sessions, in `src/dashboard.ts`. It never starts, stops, or mutates sessions — only `GET` routes, no state changes.
 
 - **Security**: binds `127.0.0.1` only; every request is rejected unless its `Host` header is loopback (`isLoopbackHost`, defeats DNS-rebinding); no CORS headers (browsers block cross-origin reads); the inline page renders all session-derived strings via `textContent`/DOM (never `innerHTML` for data) so labels/paths can't inject markup. **No auth** — assumes a single-user host.
 - **Data flow**: `buildStaticViews` is the instant, state.json-only view (served at `?quick=1` for first paint); `collectSessionViews` is the enriched view — status/CPU/mem from two batched Docker calls (`dockerListStates` + `dockerStats`, not per-session inspect), plus per-session transcript reads. Keep pure helpers (`parsePorts`, the transcript parsers, pricing/cost) extracted and unit-tested in `dashboard.test.ts`.
-- **Transcript-derived fields are Claude-only** (idle status, last activity, context %, cost, peek) — they parse the Claude Code JSONL; pricing and context-window size are heuristics keyed off the model name. Codex/aider have no transcripts, so those fields are blank.
+- **Transcript-derived fields are Claude-only** (idle status, last activity, context %, cost, peek) — they parse the Claude Code JSONL; pricing and context-window size are heuristics keyed off the model name. All backends now persist their session logs (see "Session transcripts" above), but the dashboard only parses Claude's format, so those fields stay blank for Codex/aider/pi (gated on `agent === "claude"` in `collectSessionViews`).
 - **Idle detection**: `isAwaitingUser` reads the last conversational turn; a staleness fallback (`IDLE_STALE_MS`) marks a running-but-quiet container idle (covers `/clear` and similar, where the transcript shape isn't conclusive).
 - **The page** (HTML/CSS/client-JS) is one inline template-literal string, `PAGE`. The client JS deliberately avoids backticks and `${...}` so the whole literal stays a plain string — keep it that way when editing.
 
