@@ -190,7 +190,7 @@ autoload -Uz compinit && compinit
 
 ### Transcript persistence
 
-Claude sessions write conversation transcripts under `~/.agentd/transcripts/<uuid>/` on the host and are exposed to host tooling (e.g. `claude --resume`, the `/insights` skill) via a symlink under `~/.claude/projects/agentd-<uuid>/`. The bucket and symlink are kept on `agentd cancel` (including `--rm` exits) so longitudinal tooling can still read them; remove them by hand if you don't want them. Set `AGENTD_NO_TRANSCRIPTS=1` to disable persistence for new sessions.
+Session transcripts are persisted on the host under `~/.agentd/transcripts/<uuid>/`. These remain even after container removal. Set `AGENTD_NO_TRANSCRIPTS=1` to opt out.
 
 ### Clipboard In host tmux
 

@@ -7,6 +7,12 @@ const DEFAULT_MODEL = "qwen2.5-coder:7b";
 const OLLAMA_BASE = "http://host.docker.internal:11434";
 const OLLAMA_API = `${OLLAMA_BASE}/v1`;
 
+// aider writes its chat/input history to the cwd by default (polluting the
+// repo). Redirect both into a dedicated dir so agentd can persist them as the
+// session bucket, out of /workspace. The dir is created in the Dockerfile so
+// the flags work even when transcript persistence is disabled (no mount).
+const SESSIONS_DIR = "/home/agent/.aider/sessions";
+
 const OLLAMA_CHECK = `curl -sf --max-time 3 ${OLLAMA_BASE}/api/tags >/dev/null 2>&1`
   + ` || { echo "ERROR: Cannot reach Ollama at ${OLLAMA_BASE}"; echo "Start it on the host: ollama serve"; exec bash; }`;
 
@@ -19,6 +25,8 @@ function aiderCommand(model?: string): string {
     `--openai-api-base ${OLLAMA_API}`,
     "--openai-api-key unused",
     `--model ${fullModel}`,
+    `--chat-history-file ${SESSIONS_DIR}/chat.history.md`,
+    `--input-history-file ${SESSIONS_DIR}/input.history`,
     "--no-auto-commits",
     "--yes",
   ].join(" ");
@@ -30,6 +38,8 @@ export const aider: AgentBackend = {
   name: "aider",
   dockerImage: "agentd-aider:latest",
   defaultModel: DEFAULT_MODEL,
+
+  transcriptsDir: SESSIONS_DIR,
 
   credentialShadowVars: [],
 

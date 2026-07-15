@@ -239,11 +239,12 @@ cli.command("shell", {
   }),
   options: shellOptionsSchema,
   output: z.object({
-    name: z.string(),
+    label: z.string(),
     agent: z.string(),
-    model: z.string().optional(),
-    containerId: z.string(),
     status: z.string(),
+    containerId: z.string(),
+    sessionId: z.string().optional(),
+    model: z.string().optional(),
     mounts: z.array(z.string()).optional(),
     ports: z.array(z.string()).optional(),
     dockerCmd: z.string().optional(),
@@ -355,6 +356,7 @@ cli.command("shell", {
         );
       }
       // attach() throws if the container is missing or the daemon is unreachable.
+      const sessionId = existing.transcriptsKey;
       try {
         await mgr.attach(name);
         process.stderr.write(SHUTDOWN_NOTICE);
@@ -366,7 +368,10 @@ cli.command("shell", {
       const status = existing.autoRemove
         ? "removed"
         : await resolveStatus(mgr, existing.containerId);
-      return c.ok({ name, agent: existing.agent, containerId: existing.containerId.slice(0, 12), status });
+      return c.ok({
+        label: name, agent: existing.agent, status,
+        containerId: existing.containerId.slice(0, 12), sessionId,
+      });
     }
 
     const model = c.options.model ?? backend.defaultModel;
@@ -380,14 +385,16 @@ cli.command("shell", {
       const { dockerArgs, script } = await mgr.buildSpawnCommand(spawnOpts);
       const dockerCmd = formatDockerCmd(dockerArgs);
       return c.ok({
-        name, agent: agentName, model, containerId: "(dry-run)", status: "dry-run",
+        label: name, agent: agentName, status: "dry-run", containerId: "(dry-run)", model,
         mounts: mounts.length > 0 ? mounts : undefined,
         ports: ports.length > 0 ? ports : undefined,
         dockerCmd, script,
       });
     }
 
-    const containerId = await mgr.spawnInteractive(spawnOpts);
+    // transcriptsKey is the stable session id; spawnInteractive hands it back so
+    // we don't re-read state.json (which --rm's later cancel would drop anyway).
+    const { containerId, transcriptsKey: sessionId } = await mgr.spawnInteractive(spawnOpts);
     try {
       await mgr.attach(name);
       process.stderr.write(SHUTDOWN_NOTICE);
@@ -399,7 +406,10 @@ cli.command("shell", {
     const status = rm
       ? "removed"
       : await resolveStatus(mgr, containerId);
-    return c.ok({ name, agent: agentName, containerId: containerId.slice(0, 12), status });
+    return c.ok({
+      label: name, agent: agentName, status,
+      containerId: containerId.slice(0, 12), sessionId,
+    });
   },
 });
 

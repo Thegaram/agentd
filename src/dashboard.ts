@@ -530,7 +530,10 @@ export async function collectSessionViews(mgr: SessionManager): Promise<SessionV
       let contextTokens: number | undefined;
       let contextPct: number | undefined;
       let costUsd: number | undefined;
-      if (s.transcriptsKey) {
+      // These parsers understand Claude Code's JSONL only. Every backend now
+      // persists a transcriptsKey bucket, but reading another agent's format
+      // (e.g. pi's flat *.jsonl) would yield garbage — so gate on Claude.
+      if (s.agent === "claude" && s.transcriptsKey) {
         const info = transcriptInfo(mgr.transcriptsHostDir(s.transcriptsKey), s.model);
         if (info.mtimeMs !== undefined) {
           lastActivity = formatAge(new Date(info.mtimeMs).toISOString());
@@ -631,7 +634,8 @@ export function startDashboard(
       try {
         const label = new URL(req.url, "http://localhost").searchParams.get("label") ?? "";
         const session = mgr.getSession(label);
-        const turns = session?.transcriptsKey
+        // Claude-only: newestTranscriptTurns parses Claude's JSONL shape.
+        const turns = session && session.agent === "claude" && session.transcriptsKey
           ? newestTranscriptTurns(mgr.transcriptsHostDir(session.transcriptsKey))
           : [];
         res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });

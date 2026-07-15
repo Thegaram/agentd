@@ -350,6 +350,44 @@ describe("dashboard server", () => {
     expect(JSON.parse(transcriptRes.body)).toMatchObject({ turns: [] });
   });
 
+  it("does not parse a non-Claude session's bucket as a Claude transcript", async () => {
+    // Every backend now persists a transcriptsKey bucket, but the parsers only
+    // understand Claude's JSONL. A pi session must stay blank even if a
+    // Claude-shaped .jsonl lands in its bucket.
+    const transcriptsKey = "pi-session-bucket";
+    const dir = mgr.transcriptsHostDir(transcriptsKey);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "session.jsonl"), JSON.stringify({
+      type: "assistant",
+      message: { role: "assistant", content: [{ type: "text", text: "pi said this" }] },
+    }) + "\n");
+    mgr.saveSession({
+      label: "pi-demo",
+      agent: "pi",
+      model: "gpt-5.4",
+      containerId: "abcdef0123456789",
+      startedAt: new Date().toISOString(),
+      autoRemove: false,
+      secrets: [],
+      mounts: [],
+      ports: [],
+      resolvedPorts: [],
+      transcriptsKey,
+    });
+
+    const sessionsRes = await req("/api/sessions");
+    expect(sessionsRes.status).toBe(200);
+    const view = JSON.parse(sessionsRes.body).sessions[0];
+    expect(view.label).toBe("pi-demo");
+    expect(view.lastLine).toBeUndefined();
+    expect(view.costUsd).toBeUndefined();
+    expect(view.contextPct).toBeUndefined();
+
+    const transcriptRes = await req("/api/transcript?label=pi-demo");
+    expect(transcriptRes.status).toBe(200);
+    expect(JSON.parse(transcriptRes.body)).toMatchObject({ turns: [] });
+  });
+
   it("surfaces the native credential mount as a chip (filename only)", async () => {
     mgr.saveSession({
       label: "with-cred",
