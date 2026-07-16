@@ -29,6 +29,10 @@ export const pi: AgentBackend = {
   // rewrites in place (which a mount would block — see the credential note).
   transcriptsDir: "/home/agent/.pi/agent/sessions",
 
+  // `pi -c` (resumeCommand) continues the copied session, so fork works. Both the
+  // source and fork containers use cwd /workspace, so pi's cwd-keyed session matches.
+  supportsFork: true,
+
   // No mounted credential file. pi owns ~/.pi/agent/auth.json and rewrites it via
   // atomic rename (on /login and on OAuth refresh); a read-only single-file bind
   // mount blocks that write (EROFS/EBUSY), so the login would appear to succeed

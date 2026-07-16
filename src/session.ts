@@ -1,13 +1,16 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import {
+  chownSync,
+  cpSync,
   existsSync,
   mkdirSync,
-  rmdirSync,
+  readdirSync,
+  rmSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { basename } from "node:path";
+import { basename, join } from "node:path";
 
 import type { SessionState } from "./schema.js";
 import { createPaths, type Paths } from "./paths.js";
@@ -218,6 +221,42 @@ export function transcriptsMountArg(
   return `${paths.transcriptsHostDir(key)}:${backend.transcriptsDir}`;
 }
 
+/** The container agent runs as uid 1000 (see container/Dockerfile.base). */
+const CONTAINER_UID = 1000;
+
+/**
+ * Best-effort recursive chown of a freshly-copied transcript bucket to the
+ * container uid so the agent can read and append to it. A no-op on the common
+ * host-uid-1000 case; silently skipped where the host user can't chown to 1000
+ * (macOS, non-root Linux), matching agentd's documented uid caveat.
+ */
+function chownToContainerUid(dir: string): void {
+  try {
+    chownSync(dir, CONTAINER_UID, CONTAINER_UID);
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const child = join(dir, entry.name);
+      chownSync(child, CONTAINER_UID, CONTAINER_UID);
+      if (entry.isDirectory()) chownToContainerUid(child);
+    }
+  } catch {
+    // Insufficient privilege to chown — leave ownership as-is.
+  }
+}
+
+/**
+ * Seed a fork's transcript bucket with an independent COPY of the source
+ * session's transcript, so `resumeCommand` continues the conversation. The two
+ * buckets diverge from here; they are never shared (concurrent appends to one
+ * JSONL would corrupt both). Runs host-side before `docker create`.
+ */
+export function seedTranscriptDir(srcDir: string, destDir: string): void {
+  if (!existsSync(srcDir)) {
+    throw new Error(`--fork: source transcript dir not found: ${srcDir}`);
+  }
+  cpSync(srcDir, destDir, { recursive: true });
+  chownToContainerUid(destDir);
+}
+
 /**
  * Build a diagnostic error message for a container that exited before tmux
  * came up. Includes exit code, Docker's own error if any, and the tail of
@@ -252,6 +291,12 @@ export interface InteractiveOptions {
   rm?: boolean | undefined;
   persona?: string | undefined;
   noPersona?: boolean | undefined;
+  /**
+   * Fork: transcriptsKey of a source session whose transcript is copied into
+   * this new session's bucket before start, so the agent resumes it. When set,
+   * the startup script uses `resumeCommand` instead of `startCommand`.
+   */
+  seedTranscriptsFromKey?: string | undefined;
 }
 
 export interface DryRunResult {
@@ -385,11 +430,15 @@ export class SessionManager {
     );
 
     const preamble = credentialPreamble(backend);
+    // A fork resumes the copied transcript; a fresh session starts clean.
+    const agentCommand = opts.seedTranscriptsFromKey
+      ? backend.resumeCommand(opts.model)
+      : backend.startCommand(opts.model);
     const script = [
       `#!/bin/bash`,
       preamble,
       ...secretSourceLines(opts.secrets),
-      backend.startCommand(opts.model),
+      agentCommand,
     ].join("\n");
 
     return { dockerArgs, script, theme, transcriptsKey, personaPath };
@@ -401,9 +450,14 @@ export class SessionManager {
     const { dockerArgs, script, theme, transcriptsKey, personaPath } = await this.buildSpawnCommand(opts);
 
     if (transcriptsKey) {
-      // Must exist before dockerCreate: Docker auto-creates missing bind
-      // sources as root, after which the agent UID can't write into them.
-      mkdirSync(this.paths.transcriptsHostDir(transcriptsKey), { recursive: true });
+      // The bucket must exist before dockerCreate: Docker auto-creates a missing
+      // bind source as root, after which the agent UID can't write into it.
+      const destDir = this.paths.transcriptsHostDir(transcriptsKey);
+      if (opts.seedTranscriptsFromKey) {
+        seedTranscriptDir(this.paths.transcriptsHostDir(opts.seedTranscriptsFromKey), destDir);
+      } else {
+        mkdirSync(destDir, { recursive: true });
+      }
     }
 
     let containerId: string;
@@ -411,7 +465,9 @@ export class SessionManager {
       containerId = await dockerCreate(dockerArgs);
     } catch (e) {
       if (transcriptsKey) {
-        try { rmdirSync(this.paths.transcriptsHostDir(transcriptsKey)); } catch { /* best effort */ }
+        try {
+          rmSync(this.paths.transcriptsHostDir(transcriptsKey), { recursive: true, force: true });
+        } catch { /* best effort */ }
       }
       throw e;
     }

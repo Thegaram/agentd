@@ -38,6 +38,9 @@ export const claude: AgentBackend = {
   // projects out of the container.
   transcriptsDir: "/home/agent/.claude/projects/-workspace",
 
+  // `claude --continue` (resumeCommand) reads the copied transcript, so fork works.
+  supportsFork: true,
+
   startCommand(model?: string): string {
     const modelFlag = model ? ` --model "${model}"` : "";
     return `claude${modelFlag}`;

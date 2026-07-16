@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 import { Cli, z } from "incur";
 import { SessionManager } from "./session.js";
+import type { SessionState } from "./schema.js";
 import type { ContainerState } from "./docker.js";
 import { startDashboard } from "./dashboard.js";
 import { formatAge } from "./format.js";
@@ -273,11 +274,42 @@ cli.command("shell", {
       options: { mount: ["~/obsidian:/workspace"], secret: ["claude"] },
       description: "Named session with custom mount",
     },
+    {
+      options: { fork: "project-a" },
+      description: "Fork project-a's conversation into the current dir",
+    },
   ],
   async run(c) {
     const agent = resolveAgent(c.options);
-    const agentName = agent.name;
+
+    // --fork <label>: spawn a normal fresh session in the current dir seeded
+    // with a COPY of an existing session's transcript, so the agent continues
+    // the conversation here. The source session stays running, untouched.
+    const forkLabel = c.options.fork;
+    let forkSource: SessionState | undefined;
+    if (forkLabel != null) {
+      forkSource = mgr.getSession(forkLabel);
+      if (!forkSource) {
+        throw new Error(`--fork: no session named "${forkLabel}" (see: agentd ls)`);
+      }
+      if (!forkSource.transcriptsKey) {
+        throw new Error(`--fork: "${forkLabel}" has no persisted transcript to copy (started with AGENTD_NO_TRANSCRIPTS=1?)`);
+      }
+      if (agent.explicit && agent.name !== forkSource.agent) {
+        throw new Error(`--fork: "${forkLabel}" is a ${forkSource.agent} session; can't fork it into a ${agent.name} session`);
+      }
+      if (process.env["AGENTD_NO_TRANSCRIPTS"] === "1") {
+        throw new Error(`--fork needs transcript persistence for the new session; unset AGENTD_NO_TRANSCRIPTS`);
+      }
+    }
+
+    // A fork inherits ONLY the source's agent (fork is transcript-level); every
+    // other setting comes from this command's own flags/defaults, never the source.
+    const agentName = forkSource ? forkSource.agent : agent.name;
     const backend = getBackend(agentName);
+    if (forkSource && !backend.supportsFork) {
+      throw new Error(`--fork isn't supported for ${agentName} (it has no resume-from-transcript)`);
+    }
 
     const cwd = process.cwd();
     const rm = c.options.rm ?? false;
@@ -301,6 +333,12 @@ cli.command("shell", {
       ?? (backend.requiresAuth === false || mgr.hasCredentials(backend) ? [] : [backend.defaultSecretScope]);
 
     const existing = mgr.getSession(name);
+    if (existing && forkSource) {
+      throw new Error(
+        `--fork: target "${name}" already exists; a fork always creates a new session.\n`
+          + `Pass a new label: agentd shell <newname> --fork ${forkLabel}`,
+      );
+    }
     if (existing) {
       const conflicts: string[] = [];
       if (agent.explicit && agentName !== existing.agent) {
@@ -379,6 +417,7 @@ cli.command("shell", {
       name, backend, mounts, secrets, ports, model, rm,
       persona: c.options.persona,
       noPersona: c.options["no-persona"],
+      seedTranscriptsFromKey: forkSource?.transcriptsKey,
     };
 
     if (c.options["dry-run"]) {

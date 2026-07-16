@@ -42,6 +42,15 @@ export interface AgentBackend {
    */
   readonly transcriptsDir?: string;
 
+  /**
+   * Whether `agentd shell --fork` can seed a new session from a copy of this
+   * backend's transcript and have `resumeCommand` continue it. True for
+   * backends whose resume reads from `transcriptsDir` (Claude `--continue`,
+   * Codex `resume --last`, pi `-c`); omit for backends with no real resume
+   * (e.g. aider), which would silently start fresh instead of continuing.
+   */
+  readonly supportsFork?: boolean;
+
   // ── Credentials ──────────────────────────────────────────────────
 
   /** Env vars that shadow a credential file and must be unset when it's mounted. */
