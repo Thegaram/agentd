@@ -63,4 +63,8 @@ export const shellOptionsSchema = z.object({
     .boolean()
     .optional()
     .describe("Print the Docker command without executing"),
+  fork: z
+    .string()
+    .optional()
+    .describe("Fork an existing session (by label) into the current dir, copying its transcript"),
 });

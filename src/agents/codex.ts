@@ -173,6 +173,9 @@ export const codex: AgentBackend = {
   // the auth.json file mount, so the two don't collide.
   transcriptsDir: "/home/agent/.codex/sessions",
 
+  // `codex resume --last` (resumeCommand) reads the copied rollout, so fork works.
+  supportsFork: true,
+
   credentialShadowVars: ["CODEX_API_KEY", "OPENAI_API_KEY"],
 
   credentialHostPath(paths: Paths): string {

@@ -106,6 +106,7 @@ The current directory is mounted read-write at `/workspace` by default. Port 300
 --skip-ports             don't publish any ports
 --persona name|path      reusable persona name (~/.agentd/persona/<name>.md) or a file path, for this session
 --no-persona             don't mount any persona/instructions file
+--fork label             fork an existing session into the current dir (copies its transcript)
 --dry-run                print the Docker command without executing
 ```
 
@@ -141,6 +142,11 @@ agentd shell my-app
 # Dev in Claude, review the same dir read-only in Codex
 agentd shell my-app
 agentd shell my-app-review --codex --mount .:/workspace:ro
+
+# Fork a session with different mounted directories
+# This creates a brand new session but inherits session history
+agentd shell my-app
+agentd shell my-app-2 --fork my-app --mount app:/workspace
 ```
 
 ### Dashboard

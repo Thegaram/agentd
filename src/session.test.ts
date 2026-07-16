@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   mkdtempSync,
   mkdirSync,
+  readFileSync,
   writeFileSync,
   rmSync,
 } from "node:fs";
@@ -11,6 +12,7 @@ import {
   SessionManager,
   forwardedTerminalEnv,
   parseDockerPortOutput,
+  seedTranscriptDir,
   shortenMountPath,
   resolveContainerTerm,
   transcriptsMountArg,
@@ -232,6 +234,60 @@ describe("transcriptsMountArg", () => {
 
   it("returns undefined when no key is supplied", () => {
     expect(transcriptsMountArg(claude, paths, undefined)).toBeUndefined();
+  });
+});
+
+describe("supportsFork capability", () => {
+  it("is set for backends whose resume reads the persisted transcript", () => {
+    expect(claude.supportsFork).toBe(true);
+    expect(codex.supportsFork).toBe(true);
+    expect(pi.supportsFork).toBe(true);
+  });
+
+  it("is absent for backends with no resume (aider)", () => {
+    expect(aider.supportsFork).toBeFalsy();
+  });
+});
+
+describe("seedTranscriptDir", () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), "agentd-fork-"));
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it("copies the source bucket's files into a new dest dir", () => {
+    const src = join(root, "src");
+    mkdirSync(src, { recursive: true });
+    writeFileSync(join(src, "a.jsonl"), "line1\n");
+    writeFileSync(join(src, "b.jsonl"), "line2\n");
+
+    const dest = join(root, "dest");
+    seedTranscriptDir(src, dest);
+
+    expect(readFileSync(join(dest, "a.jsonl"), "utf8")).toBe("line1\n");
+    expect(readFileSync(join(dest, "b.jsonl"), "utf8")).toBe("line2\n");
+  });
+
+  it("produces an independent copy — source edits don't reach the fork", () => {
+    const src = join(root, "src");
+    mkdirSync(src, { recursive: true });
+    writeFileSync(join(src, "a.jsonl"), "orig\n");
+
+    const dest = join(root, "dest");
+    seedTranscriptDir(src, dest);
+    writeFileSync(join(src, "a.jsonl"), "changed\n");
+
+    expect(readFileSync(join(dest, "a.jsonl"), "utf8")).toBe("orig\n");
+  });
+
+  it("throws a clear error when the source dir is missing", () => {
+    expect(() => seedTranscriptDir(join(root, "nope"), join(root, "dest")))
+      .toThrow(/source transcript dir not found/);
   });
 });
 

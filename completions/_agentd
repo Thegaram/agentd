@@ -77,6 +77,7 @@ _agentd() {
         "--skip-ports[Don't publish any ports]" \
         '--persona[Reusable persona name (~/.agentd/persona/<name>.md) or a file path]:persona:_agentd_personas' \
         "--no-persona[Don't mount any persona/instructions file]" \
+        '--fork[Fork an existing session into the current dir, copying its transcript]:session:_agentd_sessions' \
         '--dry-run[Print the Docker command without executing]'
       ;;
   esac

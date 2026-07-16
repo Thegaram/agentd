@@ -101,6 +101,19 @@ Every backend persists its session logs to the host so they survive container re
 - **Opt out** with `AGENTD_NO_TRANSCRIPTS=1` (no key generated, no mount). Data is kept on `agentd cancel`/`--rm`; remove by hand to delete it.
 - **pi caveat.** `transcriptsDir` must be a subdir of the agent's config dir that the agent doesn't rewrite in place — pi's `~/.pi/agent/sessions` is safe, but mounting `~/.pi/agent` itself would block the atomic auth.json rewrite (see `agents/pi.ts`).
 
+## Session fork (`agentd shell --fork <label>`)
+
+Fork spawns a **normal fresh session** in the current dir, seeded with a **copy** of another session's transcript, then resumes it — so the agent continues the conversation while operating on the new directory. The source session stays running, untouched; the two diverge from the copy point. This sidesteps the "migrate a running session to a new dir" trap: Docker bind mounts are fixed at `docker create`, so re-pointing `/workspace` would mean recreating the container and losing its writable layer. Forking recreates nothing.
+
+- **Why it works in the new dir.** The container path is `/workspace` in *both* sessions, so each backend's resume reads the copied transcript from the same place it would its own: Claude `--continue` (project dir encodes to `-workspace`), Codex `resume --last`, pi `-c` (cwd-keyed, and cwd is `/workspace` in both). The conversation's `/workspace` file references transparently resolve to the new dir's files.
+- **Gated by `supportsFork`** (`agents/types.ts`), set on claude/codex/pi — backends whose `resumeCommand` reads `transcriptsDir`. aider has no resume, so it's excluded and `--fork` errors for it.
+- **Copy, never share.** The fork mints its own `transcriptsKey` and gets an independent copy (`seedTranscriptDir` in `session.ts`, tested with real temp dirs). Bind-mounting one transcript dir into two containers would have both agents appending to the same JSONL and corrupt it.
+- **Mechanism.** `cli.ts` resolves the source, forces the new session's agent to the source's (a fork is transcript-level — `--fork` + a conflicting `--codex` errors), forbids an existing target label, and threads `seedTranscriptsFromKey` into spawn. `spawnInteractive` copies the source bucket into the fresh key's dir before `docker create` (best-effort `chown` to the container uid so `--continue` can append on UID-mismatched hosts) and selects `resumeCommand` over `startCommand`. No `schema.ts` change — a fork is just a normal session with a pre-seeded transcript.
+- **Config isolation.** A fork inherits only the source's *agent*; ports/mounts/secrets/model/persona come from the fork command's own flags/defaults, never the source.
+- **pi auth doesn't carry into a fork.** Claude/Codex forks stay authenticated because their credentials are host files under `~/.agentd/secrets/` that every session mounts. pi is the exception: agentd mounts nothing at pi's credential path (pi rewrites `auth.json` via atomic rename — see `agents/pi.ts`), so its login lives only in the *source container's writable layer* and isn't part of the transcript. A fork is a fresh container, so it starts unauthenticated → pi shows "No API key found for the selected model". Fixes: run `/login` inside the fork, or pass `--secret pi` (an API-key env) to the fork command (a fork doesn't inherit the source's secrets either, by the isolation rule above). This is inherent to pi's auth-in-writable-layer model, not fork-specific — a plain fresh `agentd shell --pi` needs the same.
+
+Note: `claude --continue` continues the copied session under its existing id, so the fork bucket and source bucket hold a file with the same session id that then diverges. Harmless today (buckets aren't cross-referenced — no host symlink). Claude Code's native `--fork-session` flag instead assigns a new id; agentd could adopt it per-backend if future cross-bucket tooling needs globally-unique ids.
+
 ## Dashboard (`agentd serve`)
 
 A **read-only** web dashboard for all sessions, in `src/dashboard.ts`. It never starts, stops, or mutates sessions — only `GET` routes, no state changes.
@@ -130,6 +143,8 @@ A **read-only** web dashboard for all sessions, in `src/dashboard.ts`. It never 
 - `--port`, `--rm`, `--secret`, `--mount`, `--skip-mount`, `--skip-ports`, `--persona`, `--no-persona` → same pattern
 
 This means `agentd shell <name>` is always a safe way to resume, regardless of how the session was originally created.
+
+`--fork <label>` is the exception: it never resumes. It always creates a new session and **errors if the target label already exists** (pass a new label), so it can't collide with resume.
 
 ## Running locally
 
