@@ -4,7 +4,7 @@ DOCKER_BUILD_FLAGS ?=
 AGENTD_COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
 
 build-base:
-	docker build $(DOCKER_BUILD_FLAGS) --build-arg AGENTD_COMMIT=$(AGENTD_COMMIT) -t agentd-base:latest -f container/Dockerfile.base container/
+	docker build --pull $(DOCKER_BUILD_FLAGS) --build-arg AGENTD_COMMIT=$(AGENTD_COMMIT) -t agentd-base:latest -f container/Dockerfile.base container/
 
 build-claude: build-base
 	docker build $(DOCKER_BUILD_FLAGS) -t agentd-claude:latest -f container/claude/Dockerfile container/claude/
