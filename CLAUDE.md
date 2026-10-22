@@ -129,6 +129,7 @@ A **read-only** web dashboard for all sessions, in `src/dashboard.ts`. It never 
 - Labels are slugs: `my-project`, `obsidian`, `refactor-auth`
 - The default label is the current folder name (e.g. running from `~/code/my-project` → label `my-project`)
 - Session status: `running` or `suspended` (stopped container)
+- Published ports bind to `127.0.0.1` (`bindPortToLoopback` in `session.ts`). A spec with an explicit IP (`0.0.0.0:8080:3000`) is kept. The stored `ports` stay as the user typed them, so resume conflict checks are unaffected.
 - Zod schemas are the source of truth for file formats
 - Never log or write secret values — log scope names only
 - The container's `agent` user is uid 1000; on hosts where the user UID differs, files written by the container (including persisted transcripts under `~/.agentd/transcripts/`) won't be readable by the host user without a chown.

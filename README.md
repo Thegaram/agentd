@@ -88,7 +88,7 @@ agentd code [label]             # open session in VS Code via Dev Containers
 agentd serve [--port N]         # open read-only web dashboard
 ```
 
-The current directory is mounted read-write at `/workspace` by default. Port 3000 is published to a random host port by default.
+The current directory is mounted read-write at `/workspace` by default. Port 3000 is published to a random host port on `127.0.0.1` by default. Ports bind to localhost only, unless you name an IP (for example `--port 0.0.0.0:8080:3000`).
 
 ### Options
 
@@ -102,7 +102,7 @@ The current directory is mounted read-write at `/workspace` by default. Port 300
 --mount host:container   mount paths (replaces default cwd mount; repeatable)
 --skip-mount             don't mount current directory
 --secret scope           secret scopes to pass (defaults to agent-specific scope)
---port [host:]container  port mappings (replaces default 3000; repeatable)
+--port [ip:][host:]container  port mappings, 127.0.0.1 unless ip given (replaces default 3000; repeatable)
 --skip-ports             don't publish any ports
 --persona name|path      reusable persona name (~/.agentd/persona/<name>.md) or a file path, for this session
 --no-persona             don't mount any persona/instructions file

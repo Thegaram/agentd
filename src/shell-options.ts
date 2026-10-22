@@ -46,7 +46,7 @@ export const shellOptionsSchema = z.object({
   port: z
     .array(z.string())
     .optional()
-    .describe("Port mappings [host:]container (replaces default 3000)"),
+    .describe("Port mappings [ip:][host:]container, bound to 127.0.0.1 unless ip is given (replaces default 3000)"),
   "skip-ports": z
     .boolean()
     .optional()

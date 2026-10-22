@@ -161,6 +161,20 @@ function warnIfHostTmuxMayBlockClipboard(): void {
 }
 
 /**
+ * Bind a `docker run -p` spec to 127.0.0.1 unless it names a host IP.
+ * Docker's default is 0.0.0.0, which exposes the agent's ports to the whole network.
+ * "3000" → "127.0.0.1::3000", "8080:3000" → "127.0.0.1:8080:3000",
+ * "0.0.0.0:8080:3000" and "[::1]:8080:3000" are unchanged.
+ */
+export function bindPortToLoopback(spec: string): string {
+  if (spec.startsWith("[")) return spec;
+  const colons = spec.split(":").length - 1;
+  if (colons === 0) return `127.0.0.1::${spec}`;
+  if (colons === 1) return `127.0.0.1:${spec}`;
+  return spec;
+}
+
+/**
  * Parse `docker port` output into a display string, deduplicating IPv4/IPv6 entries.
  * Input:  "3000/tcp -> 0.0.0.0:49152\n3000/tcp -> [::]:49152"
  * Output: "3000→49152"
@@ -368,7 +382,7 @@ export class SessionManager {
     if (transcriptsMount) dockerArgs.push("-v", transcriptsMount);
 
     for (const port of opts.ports) {
-      dockerArgs.push("-p", port);
+      dockerArgs.push("-p", bindPortToLoopback(port));
     }
 
     const { hostPath: credHostPath, exists: hasCreds } = this.credentialState(backend);
