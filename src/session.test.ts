@@ -12,6 +12,7 @@ import {
   SessionManager,
   forwardedTerminalEnv,
   parseDockerPortOutput,
+  bindPortToLoopback,
   seedTranscriptDir,
   shortenMountPath,
   resolveContainerTerm,
@@ -132,6 +133,29 @@ describe("hasCredentials", () => {
     mkdirSync(join(agentdHome, "secrets"), { recursive: true });
     const mgr = new SessionManager({ agentdHome });
     expect(mgr.hasCredentials(aider)).toBe(false);
+  });
+});
+
+describe("bindPortToLoopback", () => {
+  it("binds a bare container port to loopback with a random host port", () => {
+    expect(bindPortToLoopback("3000")).toBe("127.0.0.1::3000");
+    expect(bindPortToLoopback("3000/udp")).toBe("127.0.0.1::3000/udp");
+  });
+
+  it("binds host:container to loopback", () => {
+    expect(bindPortToLoopback("8080:3000")).toBe("127.0.0.1:8080:3000");
+    expect(bindPortToLoopback("8000-8010:8000-8010")).toBe("127.0.0.1:8000-8010:8000-8010");
+  });
+
+  it("keeps an explicit IPv4 bind address", () => {
+    expect(bindPortToLoopback("0.0.0.0:8080:3000")).toBe("0.0.0.0:8080:3000");
+    expect(bindPortToLoopback("0.0.0.0::3000")).toBe("0.0.0.0::3000");
+    expect(bindPortToLoopback("192.168.1.5:8080:3000")).toBe("192.168.1.5:8080:3000");
+  });
+
+  it("keeps an explicit IPv6 bind address", () => {
+    expect(bindPortToLoopback("[::1]:8080:3000")).toBe("[::1]:8080:3000");
+    expect(bindPortToLoopback("[::]::3000")).toBe("[::]::3000");
   });
 });
 

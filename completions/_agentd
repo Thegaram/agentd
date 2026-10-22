@@ -73,7 +73,7 @@ _agentd() {
         '--model[Model override (agent-specific, e.g. opus, gpt-5.4)]:model:' \
         '--rm[Remove container when session ends]' \
         "--skip-mount[Don't mount current directory]" \
-        '*--port[Port mappings \[host\:\]container (replaces default 3000)]:port:' \
+        '*--port[Port mappings \[ip\:\]\[host\:\]container, 127.0.0.1 unless ip given (replaces default 3000)]:port:' \
         "--skip-ports[Don't publish any ports]" \
         '--persona[Reusable persona name (~/.agentd/persona/<name>.md) or a file path]:persona:_agentd_personas' \
         "--no-persona[Don't mount any persona/instructions file]" \
